@@ -1,1 +1,308 @@
-{"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"},"language_info":{"name":"python","version":"3.11.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":91720,"databundleVersionId":13345277,"sourceType":"competition"}],"dockerImageVersionId":31089,"isInternetEnabled":false,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":5,"nbformat":4,"cells":[{"id":"3b998370-183f-4e5c-b232-226e82405d93","cell_type":"code","source":"import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-07T10:11:50.519394Z","iopub.execute_input":"2025-09-07T10:11:50.519761Z","iopub.status.idle":"2025-09-07T10:11:53.004833Z","shell.execute_reply.started":"2025-09-07T10:11:50.519728Z","shell.execute_reply":"2025-09-07T10:11:53.003803Z"}},"outputs":[],"execution_count":1},{"id":"d7a9669c-4319-44dc-aba6-6b98c58a264d","cell_type":"code","source":"from sklearn.model_selection import train_test_split\n\n#Importing Data\nX_full = pd.read_csv('/kaggle/input/playground-series-s5e9/train.csv', index_col='id')\nX_test_full = pd.read_csv('/kaggle/input/playground-series-s5e9/test.csv', index_col='id')\n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-07T10:11:57.335480Z","iopub.execute_input":"2025-09-07T10:11:57.335759Z","iopub.status.idle":"2025-09-07T10:12:00.213168Z","shell.execute_reply.started":"2025-09-07T10:11:57.335739Z","shell.execute_reply":"2025-09-07T10:12:00.212178Z"}},"outputs":[],"execution_count":2},{"id":"b94ab13f-03a3-4f43-a4f4-ea1872f9a058","cell_type":"code","source":"X_full.head()\n'''\n'RhythmScore'\n'AudioLoudness'\n'VocalContent'\n'AcousticQuality',\n'InstrumentalScore',\n'LivePerformanceLikelihood',\n'MoodScore',\n'TrackDurationMs',\n'Energy',\n'BeatsPerMinute'\n'''","metadata":{},"outputs":[{"data":{"text/html":["<div>\n","<style scoped>\n","    .dataframe tbody tr th:only-of-type {\n","        vertical-align: middle;\n","    }\n","\n","    .dataframe tbody tr th {\n","        vertical-align: top;\n","    }\n","\n","    .dataframe thead th {\n","        text-align: right;\n","    }\n","</style>\n","<table border=\"1\" class=\"dataframe\">\n","  <thead>\n","    <tr style=\"text-align: right;\">\n","      <th></th>\n","      <th>RhythmScore</th>\n","      <th>AudioLoudness</th>\n","      <th>VocalContent</th>\n","      <th>AcousticQuality</th>\n","      <th>InstrumentalScore</th>\n","      <th>LivePerformanceLikelihood</th>\n","      <th>MoodScore</th>\n","      <th>TrackDurationMs</th>\n","      <th>Energy</th>\n","      <th>BeatsPerMinute</th>\n","    </tr>\n","    <tr>\n","      <th>id</th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","      <th></th>\n","    </tr>\n","  </thead>\n","  <tbody>\n","    <tr>\n","      <th>0</th>\n","      <td>0.603610</td>\n","      <td>-7.636942</td>\n","      <td>0.023500</td>\n","      <td>0.000005</td>\n","      <td>0.000001</td>\n","      <td>0.051385</td>\n","      <td>0.409866</td>\n","      <td>290715.6450</td>\n","      <td>0.826267</td>\n","      <td>147.53020</td>\n","    </tr>\n","    <tr>\n","      <th>1</th>\n","      <td>0.639451</td>\n","      <td>-16.267598</td>\n","      <td>0.071520</td>\n","      <td>0.444929</td>\n","      <td>0.349414</td>\n","      <td>0.170522</td>\n","      <td>0.651010</td>\n","      <td>164519.5174</td>\n","      <td>0.145400</td>\n","      <td>136.15963</td>\n","    </tr>\n","    <tr>\n","      <th>2</th>\n","      <td>0.514538</td>\n","      <td>-15.953575</td>\n","      <td>0.110715</td>\n","      <td>0.173699</td>\n","      <td>0.453814</td>\n","      <td>0.029576</td>\n","      <td>0.423865</td>\n","      <td>174495.5667</td>\n","      <td>0.624667</td>\n","      <td>55.31989</td>\n","    </tr>\n","    <tr>\n","      <th>3</th>\n","      <td>0.734463</td>\n","      <td>-1.357000</td>\n","      <td>0.052965</td>\n","      <td>0.001651</td>\n","      <td>0.159717</td>\n","      <td>0.086366</td>\n","      <td>0.278745</td>\n","      <td>225567.4651</td>\n","      <td>0.487467</td>\n","      <td>147.91212</td>\n","    </tr>\n","    <tr>\n","      <th>4</th>\n","      <td>0.532968</td>\n","      <td>-13.056437</td>\n","      <td>0.023500</td>\n","      <td>0.068687</td>\n","      <td>0.000001</td>\n","      <td>0.331345</td>\n","      <td>0.477769</td>\n","      <td>213960.6789</td>\n","      <td>0.947333</td>\n","      <td>89.58511</td>\n","    </tr>\n","  </tbody>\n","</table>\n","</div>"],"text/plain":["    RhythmScore  AudioLoudness  VocalContent  AcousticQuality  \\\n","id                                                              \n","0      0.603610      -7.636942      0.023500         0.000005   \n","1      0.639451     -16.267598      0.071520         0.444929   \n","2      0.514538     -15.953575      0.110715         0.173699   \n","3      0.734463      -1.357000      0.052965         0.001651   \n","4      0.532968     -13.056437      0.023500         0.068687   \n","\n","    InstrumentalScore  LivePerformanceLikelihood  MoodScore  TrackDurationMs  \\\n","id                                                                             \n","0            0.000001                   0.051385   0.409866      290715.6450   \n","1            0.349414                   0.170522   0.651010      164519.5174   \n","2            0.453814                   0.029576   0.423865      174495.5667   \n","3            0.159717                   0.086366   0.278745      225567.4651   \n","4            0.000001                   0.331345   0.477769      213960.6789   \n","\n","      Energy  BeatsPerMinute  \n","id                            \n","0   0.826267       147.53020  \n","1   0.145400       136.15963  \n","2   0.624667        55.31989  \n","3   0.487467       147.91212  \n","4   0.947333        89.58511  "]},"execution_count":8,"metadata":{},"output_type":"execute_result"}],"execution_count":8},{"id":"7fd01981-0d85-478d-9377-43bebd136788","cell_type":"code","source":"X_full.dropna(axis = 0, subset = [\"BeatsPerMinute\"], inplace = True)\ny = X_full.BeatsPerMinute\nX_full.drop([\"BeatsPerMinute\"], axis = 1, inplace = True)\n","metadata":{},"outputs":[],"execution_count":24},{"id":"50fd0450-22c5-4798-b775-9e6a4098113d","cell_type":"code","source":"x_train, x_valid, y_train , y_valid = train_test_split(X_full, y, train_size = 0.8, test_size = 0.2, random_state = 0)","metadata":{},"outputs":[],"execution_count":26},{"id":"5fe1c529-f2ca-4505-86eb-1862024192e1","cell_type":"code","source":"from sklearn.compose import ColumnTransformer\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.impute import SimpleImputer\nfrom xgboost import XGBRegressor\nfrom sklearn.metrics import mean_absolute_error\n\nnum_transformer = SimpleImputer(strategy = \"mean\")\n\npreprocess = ColumnTransformer(transformers = [(\"num\", num_transformer, x_train.columns)])\n\nmy_model = XGBRegressor(n_estimators = 500, random_state = 0, learning_rate = 0.1)\n\n\nmodel = Pipeline(steps = [(\"preprocess\", preprocess), (\"model\", my_model)])\n\nmodel.fit(x_train, y_train)\n\npreds = model.predict(x_valid)\n\nmae = mean_absolute_error(preds, y_valid)\n\nprint(mae)\n\n","metadata":{},"outputs":[{"name":"stdout","output_type":"stream","text":["21.250070882390006\n"]},{"data":{"text/plain":["'\\nlr 0.05\\n21.240664457390178\\n'"]},"execution_count":54,"metadata":{},"output_type":"execute_result"}],"execution_count":54},{"id":"f532d2cc-d4af-4259-80ee-797b865e93ae","cell_type":"code","source":"final_preds = model.predict(X_test_full)\n\noutput = pd.DataFrame({'id': X_test_full.index,\n                       'BeatsPerMinute': final_preds})\noutput.to_csv('submission.csv', index=False)","metadata":{},"outputs":[],"execution_count":60},{"id":"4f484bc7-d16d-4e35-9b73-ad7717ddcbdc","cell_type":"code","source":"","metadata":{},"outputs":[],"execution_count":null}]}
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "aef5ac9c",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-07T10:37:49.975896Z",
+     "iopub.status.busy": "2025-09-07T10:37:49.975497Z",
+     "iopub.status.idle": "2025-09-07T10:37:52.121046Z",
+     "shell.execute_reply": "2025-09-07T10:37:52.119959Z"
+    },
+    "papermill": {
+     "duration": 2.152026,
+     "end_time": "2025-09-07T10:37:52.123190",
+     "exception": false,
+     "start_time": "2025-09-07T10:37:49.971164",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "2209b654",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-07T10:37:52.130359Z",
+     "iopub.status.busy": "2025-09-07T10:37:52.129936Z",
+     "iopub.status.idle": "2025-09-07T10:37:57.656158Z",
+     "shell.execute_reply": "2025-09-07T10:37:57.655085Z"
+    },
+    "papermill": {
+     "duration": 5.531938,
+     "end_time": "2025-09-07T10:37:57.658108",
+     "exception": false,
+     "start_time": "2025-09-07T10:37:52.126170",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "from sklearn.model_selection import train_test_split\n",
+    "\n",
+    "#Importing Data\n",
+    "X_full = pd.read_csv('/kaggle/input/playground-series-s5e9/train.csv', index_col='id')\n",
+    "X_test_full = pd.read_csv('/kaggle/input/playground-series-s5e9/test.csv', index_col='id')\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "f2f872f8",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-07T10:37:57.664082Z",
+     "iopub.status.busy": "2025-09-07T10:37:57.663733Z",
+     "iopub.status.idle": "2025-09-07T10:37:57.672122Z",
+     "shell.execute_reply": "2025-09-07T10:37:57.670837Z"
+    },
+    "papermill": {
+     "duration": 0.013284,
+     "end_time": "2025-09-07T10:37:57.673792",
+     "exception": false,
+     "start_time": "2025-09-07T10:37:57.660508",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "\"\\n'RhythmScore'\\n'AudioLoudness'\\n'VocalContent'\\n'AcousticQuality',\\n'InstrumentalScore',\\n'LivePerformanceLikelihood',\\n'MoodScore',\\n'TrackDurationMs',\\n'Energy',\\n'BeatsPerMinute'\\n\""
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_full.head()\n",
+    "'''\n",
+    "'RhythmScore'\n",
+    "'AudioLoudness'\n",
+    "'VocalContent'\n",
+    "'AcousticQuality',\n",
+    "'InstrumentalScore',\n",
+    "'LivePerformanceLikelihood',\n",
+    "'MoodScore',\n",
+    "'TrackDurationMs',\n",
+    "'Energy',\n",
+    "'BeatsPerMinute'\n",
+    "'''"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "19b464c1",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-07T10:37:57.680855Z",
+     "iopub.status.busy": "2025-09-07T10:37:57.680033Z",
+     "iopub.status.idle": "2025-09-07T10:37:57.730470Z",
+     "shell.execute_reply": "2025-09-07T10:37:57.729478Z"
+    },
+    "papermill": {
+     "duration": 0.055934,
+     "end_time": "2025-09-07T10:37:57.732262",
+     "exception": false,
+     "start_time": "2025-09-07T10:37:57.676328",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "X_full.dropna(axis = 0, subset = [\"BeatsPerMinute\"], inplace = True)\n",
+    "y = X_full.BeatsPerMinute\n",
+    "X_full.drop([\"BeatsPerMinute\"], axis = 1, inplace = True)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "d68b0e47",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-07T10:37:57.738762Z",
+     "iopub.status.busy": "2025-09-07T10:37:57.738278Z",
+     "iopub.status.idle": "2025-09-07T10:37:57.845501Z",
+     "shell.execute_reply": "2025-09-07T10:37:57.844524Z"
+    },
+    "papermill": {
+     "duration": 0.112489,
+     "end_time": "2025-09-07T10:37:57.847429",
+     "exception": false,
+     "start_time": "2025-09-07T10:37:57.734940",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "x_train, x_valid, y_train , y_valid = train_test_split(X_full, y, train_size = 0.8, test_size = 0.2, random_state = 0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "28a89e43",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-07T10:37:57.853478Z",
+     "iopub.status.busy": "2025-09-07T10:37:57.853176Z",
+     "iopub.status.idle": "2025-09-07T10:38:28.005889Z",
+     "shell.execute_reply": "2025-09-07T10:38:28.004697Z"
+    },
+    "papermill": {
+     "duration": 30.15958,
+     "end_time": "2025-09-07T10:38:28.009430",
+     "exception": false,
+     "start_time": "2025-09-07T10:37:57.849850",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "21.292285794135566\n"
+     ]
+    }
+   ],
+   "source": [
+    "from sklearn.compose import ColumnTransformer\n",
+    "from sklearn.pipeline import Pipeline\n",
+    "from sklearn.impute import SimpleImputer\n",
+    "from xgboost import XGBRegressor\n",
+    "from sklearn.metrics import mean_absolute_error\n",
+    "\n",
+    "num_transformer = SimpleImputer(strategy = \"mean\")\n",
+    "\n",
+    "preprocess = ColumnTransformer(transformers = [(\"num\", num_transformer, x_train.columns)])\n",
+    "\n",
+    "my_model = XGBRegressor(n_estimators = 2000, random_state = 0, learning_rate = 0.05)\n",
+    "\n",
+    "\n",
+    "model = Pipeline(steps = [(\"preprocess\", preprocess), (\"model\", my_model)])\n",
+    "\n",
+    "model.fit(x_train, y_train)\n",
+    "\n",
+    "preds = model.predict(x_valid)\n",
+    "\n",
+    "mae = mean_absolute_error(preds, y_valid)\n",
+    "\n",
+    "print(mae)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "fedf5d81",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-07T10:38:28.017891Z",
+     "iopub.status.busy": "2025-09-07T10:38:28.017517Z",
+     "iopub.status.idle": "2025-09-07T10:38:32.206702Z",
+     "shell.execute_reply": "2025-09-07T10:38:32.205512Z"
+    },
+    "papermill": {
+     "duration": 4.194655,
+     "end_time": "2025-09-07T10:38:32.208629",
+     "exception": false,
+     "start_time": "2025-09-07T10:38:28.013974",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "final_preds = model.predict(X_test_full)\n",
+    "\n",
+    "output = pd.DataFrame({'id': X_test_full.index,\n",
+    "                       'BeatsPerMinute': final_preds})\n",
+    "output.to_csv('submission.csv', index=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d82c98bf",
+   "metadata": {
+    "papermill": {
+     "duration": 0.002193,
+     "end_time": "2025-09-07T10:38:32.213440",
+     "exception": false,
+     "start_time": "2025-09-07T10:38:32.211247",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "databundleVersionId": 13345277,
+     "sourceId": 91720,
+     "sourceType": "competition"
+    }
+   ],
+   "dockerImageVersionId": 31089,
+   "isGpuEnabled": false,
+   "isInternetEnabled": false,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.13"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 49.12466,
+   "end_time": "2025-09-07T10:38:33.040265",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2025-09-07T10:37:43.915605",
+   "version": "2.6.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
