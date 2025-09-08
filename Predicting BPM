@@ -1,1 +1,319 @@
-{"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"},"language_info":{"name":"python","version":"3.11.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":91720,"databundleVersionId":13345277,"sourceType":"competition"}],"dockerImageVersionId":31089,"isInternetEnabled":false,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":5,"nbformat":4,"cells":[{"id":"3b998370-183f-4e5c-b232-226e82405d93","cell_type":"code","source":"import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T07:51:38.830064Z","iopub.execute_input":"2025-09-08T07:51:38.830386Z","iopub.status.idle":"2025-09-08T07:51:38.835078Z","shell.execute_reply.started":"2025-09-08T07:51:38.830366Z","shell.execute_reply":"2025-09-08T07:51:38.833896Z"}},"outputs":[],"execution_count":12},{"id":"d7a9669c-4319-44dc-aba6-6b98c58a264d","cell_type":"code","source":"from sklearn.model_selection import train_test_split\n\n#Importing Data\nX_full = pd.read_csv('/kaggle/input/playground-series-s5e9/train.csv', index_col='id')\nX_test_full = pd.read_csv('/kaggle/input/playground-series-s5e9/test.csv', index_col='id')\n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T07:51:41.409586Z","iopub.execute_input":"2025-09-08T07:51:41.410474Z","iopub.status.idle":"2025-09-08T07:51:42.384867Z","shell.execute_reply.started":"2025-09-08T07:51:41.410443Z","shell.execute_reply":"2025-09-08T07:51:42.383825Z"}},"outputs":[],"execution_count":13},{"id":"b94ab13f-03a3-4f43-a4f4-ea1872f9a058","cell_type":"code","source":"#X_full.head()\n'''\n'RhythmScore'\n'AudioLoudness'\n'VocalContent'\n'AcousticQuality',\n'InstrumentalScore',\n'LivePerformanceLikelihood',\n'MoodScore',\n'TrackDurationMs',\n'Energy',\n'BeatsPerMinute'\n'''\n'''\nremove_cols = [\"MoodScore\", ]\n\nX_full.drop([\"MoodScore\"],axis = 1, inplace = True)\nX_test_full.drop([\"MoodScore\"],axis = 1, inplace = True)'''\n\ncorr = X_full.corr()\nprint(corr['BeatsPerMinute'].sort_values(ascending=False))\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T07:51:44.119817Z","iopub.execute_input":"2025-09-08T07:51:44.120217Z","iopub.status.idle":"2025-09-08T07:51:44.307313Z","shell.execute_reply.started":"2025-09-08T07:51:44.120189Z","shell.execute_reply":"2025-09-08T07:51:44.306102Z"}},"outputs":[{"name":"stdout","text":"BeatsPerMinute               1.000000\nMoodScore                    0.007059\nTrackDurationMs              0.006637\nRhythmScore                  0.005440\nVocalContent                 0.004876\nLivePerformanceLikelihood    0.003471\nInstrumentalScore            0.001900\nAcousticQuality             -0.000820\nAudioLoudness               -0.003327\nEnergy                      -0.004375\nName: BeatsPerMinute, dtype: float64\n","output_type":"stream"}],"execution_count":14},{"id":"7fd01981-0d85-478d-9377-43bebd136788","cell_type":"code","source":"X_full.dropna(axis = 0, subset = [\"BeatsPerMinute\"], inplace = True)\ny = X_full.BeatsPerMinute\nX_full.drop([\"BeatsPerMinute\"], axis = 1, inplace = True)\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T07:51:49.136462Z","iopub.execute_input":"2025-09-08T07:51:49.136797Z","iopub.status.idle":"2025-09-08T07:51:49.182054Z","shell.execute_reply.started":"2025-09-08T07:51:49.136773Z","shell.execute_reply":"2025-09-08T07:51:49.181234Z"}},"outputs":[],"execution_count":15},{"id":"50fd0450-22c5-4798-b775-9e6a4098113d","cell_type":"code","source":"x_train, x_valid, y_train , y_valid = train_test_split(X_full, y, train_size = 0.8, test_size = 0.2, random_state = 0)","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T07:51:51.858831Z","iopub.execute_input":"2025-09-08T07:51:51.859195Z","iopub.status.idle":"2025-09-08T07:51:51.964056Z","shell.execute_reply.started":"2025-09-08T07:51:51.859170Z","shell.execute_reply":"2025-09-08T07:51:51.963084Z"}},"outputs":[],"execution_count":16},{"id":"5fe1c529-f2ca-4505-86eb-1862024192e1","cell_type":"code","source":"from sklearn.compose import ColumnTransformer\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.impute import SimpleImputer\nfrom xgboost import XGBRegressor\nfrom sklearn.metrics import mean_absolute_error\n\nnum_transformer = SimpleImputer(strategy = \"mean\")\n\npreprocess = ColumnTransformer(transformers = [(\"num\", num_transformer, x_train.columns)])\n\n\nestimators = 10000\nlearn_rate = 0.01\n\nmy_model = XGBRegressor(n_estimators = estimators, random_state = 0, learning_rate = learn_rate )\n\n\nmodel = Pipeline(steps = [(\"preprocess\", preprocess), (\"model\", my_model )])\n\nmodel.fit(x_train, y_train)\n\npreds = model.predict(x_valid)\n\nmae = mean_absolute_error(preds, y_valid)\n\nprint(f\"Mae: {mae}, Estimator = {estimators}, learning rate = {learn_rate}\")\n\n#Mae: 21.187070066472046, Estimator = 4000, learning rate = 0.001\n\n#Mae: 21.30098858285947, Estimator = 10000, learning rate = 0.01 (Removed mood score)\n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T07:53:27.292944Z","iopub.execute_input":"2025-09-08T07:53:27.293314Z","iopub.status.idle":"2025-09-08T07:55:53.552584Z","shell.execute_reply.started":"2025-09-08T07:53:27.293289Z","shell.execute_reply":"2025-09-08T07:55:53.551860Z"}},"outputs":[{"name":"stdout","text":"Mae: 21.285677441281376, Estimator = 10000, learning rate = 0.01\n","output_type":"stream"}],"execution_count":18},{"id":"f532d2cc-d4af-4259-80ee-797b865e93ae","cell_type":"code","source":"final_preds = model.predict(X_test_full)\n\noutput = pd.DataFrame({'id': X_test_full.index,\n                       'BeatsPerMinute': final_preds})\noutput.to_csv('submission.csv', index=False)","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T07:39:53.939083Z","iopub.status.idle":"2025-09-08T07:39:53.939411Z","shell.execute_reply.started":"2025-09-08T07:39:53.939259Z","shell.execute_reply":"2025-09-08T07:39:53.939272Z"}},"outputs":[],"execution_count":null}]}
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "0a15ba2b",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-08T08:33:47.949427Z",
+     "iopub.status.busy": "2025-09-08T08:33:47.948991Z",
+     "iopub.status.idle": "2025-09-08T08:33:50.348537Z",
+     "shell.execute_reply": "2025-09-08T08:33:50.347223Z"
+    },
+    "papermill": {
+     "duration": 2.405717,
+     "end_time": "2025-09-08T08:33:50.350530",
+     "exception": false,
+     "start_time": "2025-09-08T08:33:47.944813",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "43e8e8f9",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-08T08:33:50.357634Z",
+     "iopub.status.busy": "2025-09-08T08:33:50.357055Z",
+     "iopub.status.idle": "2025-09-08T08:33:54.448707Z",
+     "shell.execute_reply": "2025-09-08T08:33:54.447345Z"
+    },
+    "papermill": {
+     "duration": 4.097261,
+     "end_time": "2025-09-08T08:33:54.450790",
+     "exception": false,
+     "start_time": "2025-09-08T08:33:50.353529",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "from sklearn.model_selection import train_test_split\n",
+    "\n",
+    "#Importing Data\n",
+    "X_full = pd.read_csv('/kaggle/input/playground-series-s5e9/train.csv', index_col='id')\n",
+    "X_test_full = pd.read_csv('/kaggle/input/playground-series-s5e9/test.csv', index_col='id')\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "a92b9b90",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-08T08:33:54.457325Z",
+     "iopub.status.busy": "2025-09-08T08:33:54.456956Z",
+     "iopub.status.idle": "2025-09-08T08:33:54.800483Z",
+     "shell.execute_reply": "2025-09-08T08:33:54.799086Z"
+    },
+    "papermill": {
+     "duration": 0.349041,
+     "end_time": "2025-09-08T08:33:54.802474",
+     "exception": false,
+     "start_time": "2025-09-08T08:33:54.453433",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "BeatsPerMinute               1.000000\n",
+      "MoodScore                    0.007059\n",
+      "TrackDurationMs              0.006637\n",
+      "RhythmScore                  0.005440\n",
+      "VocalContent                 0.004876\n",
+      "LivePerformanceLikelihood    0.003471\n",
+      "InstrumentalScore            0.001900\n",
+      "NewFeat1                    -0.000316\n",
+      "AcousticQuality             -0.000820\n",
+      "AudioLoudness               -0.003327\n",
+      "Energy                      -0.004375\n",
+      "Name: BeatsPerMinute, dtype: float64\n"
+     ]
+    }
+   ],
+   "source": [
+    "#X_full.head()\n",
+    "'''\n",
+    "'RhythmScore'\n",
+    "'AudioLoudness'\n",
+    "'VocalContent'\n",
+    "'AcousticQuality',\n",
+    "'InstrumentalScore',\n",
+    "'LivePerformanceLikelihood',\n",
+    "'MoodScore',\n",
+    "'TrackDurationMs',\n",
+    "'Energy',\n",
+    "'BeatsPerMinute'\n",
+    "'''\n",
+    "'''\n",
+    "remove_cols = [\"MoodScore\", ]\n",
+    "\n",
+    "X_full.drop([\"MoodScore\"],axis = 1, inplace = True)\n",
+    "X_test_full.drop([\"MoodScore\"],axis = 1, inplace = True)'''\n",
+    "\n",
+    "\n",
+    "X_full[\"NewFeat1\"] = X_full[\"RhythmScore\"] * X_full[\"Energy\"] * X_full[\"AudioLoudness\"]\n",
+    "X_test_full[\"NewFeat1\"] = X_test_full[\"RhythmScore\"] * X_test_full[\"Energy\"] * X_test_full[\"AudioLoudness\"]\n",
+    "\n",
+    "corr = X_full.corr()\n",
+    "print(corr['BeatsPerMinute'].sort_values(ascending=False))\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "f137a5d3",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-08T08:33:54.808944Z",
+     "iopub.status.busy": "2025-09-08T08:33:54.808611Z",
+     "iopub.status.idle": "2025-09-08T08:33:54.892506Z",
+     "shell.execute_reply": "2025-09-08T08:33:54.891475Z"
+    },
+    "papermill": {
+     "duration": 0.089592,
+     "end_time": "2025-09-08T08:33:54.894672",
+     "exception": false,
+     "start_time": "2025-09-08T08:33:54.805080",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "X_full.dropna(axis = 0, subset = [\"BeatsPerMinute\"], inplace = True)\n",
+    "y = X_full.BeatsPerMinute\n",
+    "X_full.drop([\"BeatsPerMinute\"], axis = 1, inplace = True)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "050d1618",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-08T08:33:54.901322Z",
+     "iopub.status.busy": "2025-09-08T08:33:54.900952Z",
+     "iopub.status.idle": "2025-09-08T08:33:54.996863Z",
+     "shell.execute_reply": "2025-09-08T08:33:54.994995Z"
+    },
+    "papermill": {
+     "duration": 0.101914,
+     "end_time": "2025-09-08T08:33:54.999308",
+     "exception": false,
+     "start_time": "2025-09-08T08:33:54.897394",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "x_train, x_valid, y_train , y_valid = train_test_split(X_full, y, train_size = 0.8, test_size = 0.2, random_state = 0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "ff2aafcd",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-08T08:33:55.006978Z",
+     "iopub.status.busy": "2025-09-08T08:33:55.006619Z",
+     "iopub.status.idle": "2025-09-08T08:35:06.247875Z",
+     "shell.execute_reply": "2025-09-08T08:35:06.246411Z"
+    },
+    "papermill": {
+     "duration": 71.249915,
+     "end_time": "2025-09-08T08:35:06.252103",
+     "exception": false,
+     "start_time": "2025-09-08T08:33:55.002188",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Mae: 21.414982996068282, Estimator = 4000, learning rate = 0.05\n"
+     ]
+    }
+   ],
+   "source": [
+    "from sklearn.compose import ColumnTransformer\n",
+    "from sklearn.pipeline import Pipeline\n",
+    "from sklearn.impute import SimpleImputer\n",
+    "from xgboost import XGBRegressor\n",
+    "from sklearn.metrics import mean_absolute_error\n",
+    "\n",
+    "num_transformer = SimpleImputer(strategy = \"mean\")\n",
+    "\n",
+    "preprocess = ColumnTransformer(transformers = [(\"num\", num_transformer, x_train.columns)])\n",
+    "\n",
+    "\n",
+    "estimators = 4000\n",
+    "learn_rate = 0.05\n",
+    "\n",
+    "my_model = XGBRegressor(n_estimators = estimators, random_state = 0, learning_rate = learn_rate )\n",
+    "\n",
+    "\n",
+    "model = Pipeline(steps = [(\"preprocess\", preprocess), (\"model\", my_model )])\n",
+    "\n",
+    "model.fit(x_train, y_train)\n",
+    "\n",
+    "preds = model.predict(x_valid)\n",
+    "\n",
+    "mae = mean_absolute_error(preds, y_valid)\n",
+    "\n",
+    "print(f\"Mae: {mae}, Estimator = {estimators}, learning rate = {learn_rate}\")\n",
+    "\n",
+    "#Mae: 21.187070066472046, Estimator = 4000, learning rate = 0.001\n",
+    "\n",
+    "#Mae: 21.30098858285947, Estimator = 10000, learning rate = 0.01 (Removed mood score)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "b9e34395",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-08T08:35:06.260555Z",
+     "iopub.status.busy": "2025-09-08T08:35:06.260100Z",
+     "iopub.status.idle": "2025-09-08T08:35:15.160075Z",
+     "shell.execute_reply": "2025-09-08T08:35:15.158902Z"
+    },
+    "papermill": {
+     "duration": 8.906464,
+     "end_time": "2025-09-08T08:35:15.162254",
+     "exception": false,
+     "start_time": "2025-09-08T08:35:06.255790",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "final_preds = model.predict(X_test_full)\n",
+    "\n",
+    "output = pd.DataFrame({'id': X_test_full.index,\n",
+    "                       'BeatsPerMinute': final_preds})\n",
+    "output.to_csv('submission.csv', index=False)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "databundleVersionId": 13345277,
+     "sourceId": 91720,
+     "sourceType": "competition"
+    }
+   ],
+   "dockerImageVersionId": 31089,
+   "isGpuEnabled": false,
+   "isInternetEnabled": false,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.13"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 94.521458,
+   "end_time": "2025-09-08T08:35:15.887330",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2025-09-08T08:33:41.365872",
+   "version": "2.6.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
