@@ -1,1 +1,444 @@
-{"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"},"language_info":{"name":"python","version":"3.11.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":91720,"databundleVersionId":13345277,"sourceType":"competition"}],"dockerImageVersionId":31089,"isInternetEnabled":false,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":5,"nbformat":4,"cells":[{"id":"3b998370-183f-4e5c-b232-226e82405d93","cell_type":"code","source":"import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\nfrom xgboost import XGBRegressor\nimport numpy as np\nfrom sklearn.model_selection import KFold, cross_val_score\n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T09:45:42.457996Z","iopub.execute_input":"2025-09-15T09:45:42.458324Z","iopub.status.idle":"2025-09-15T09:45:42.463423Z","shell.execute_reply.started":"2025-09-15T09:45:42.458300Z","shell.execute_reply":"2025-09-15T09:45:42.462288Z"}},"outputs":[],"execution_count":21},{"id":"d7a9669c-4319-44dc-aba6-6b98c58a264d","cell_type":"code","source":"from sklearn.model_selection import train_test_split\n\n#Importing Data\nX_full = pd.read_csv('/kaggle/input/playground-series-s5e9/train.csv', index_col='id')\nX_test_full = pd.read_csv('/kaggle/input/playground-series-s5e9/test.csv', index_col='id')\n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T09:44:51.805093Z","iopub.execute_input":"2025-09-15T09:44:51.805615Z","iopub.status.idle":"2025-09-15T09:44:52.930177Z","shell.execute_reply.started":"2025-09-15T09:44:51.805531Z","shell.execute_reply":"2025-09-15T09:44:52.929134Z"}},"outputs":[],"execution_count":12},{"id":"ccb56071-4e18-416d-9a1a-bbfdc9cd4a94","cell_type":"code","source":"def score_dataset(X, y, model=XGBRegressor()):\n    # Label encoding for categoricals\n    #\n    # Label encoding is good for XGBoost and RandomForest, but one-hot\n    # would be better for models like Lasso or Ridge. The `cat.codes`\n    # attribute holds the category levels.\n    for colname in X.select_dtypes([\"category\"]):\n        X[colname] = X[colname].cat.codes\n    # Metric for Housing competition is RMSLE (Root Mean Squared Log Error)\n    log_y = np.log(y)\n    score = cross_val_score(\n        model, X, log_y, cv=5, scoring=\"neg_mean_squared_error\",\n    )\n    score = -1 * score.mean()\n    score = np.sqrt(score)\n    return score","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T09:44:52.931652Z","iopub.execute_input":"2025-09-15T09:44:52.932036Z","iopub.status.idle":"2025-09-15T09:44:52.939882Z","shell.execute_reply.started":"2025-09-15T09:44:52.932008Z","shell.execute_reply":"2025-09-15T09:44:52.938851Z"}},"outputs":[],"execution_count":13},{"id":"b94ab13f-03a3-4f43-a4f4-ea1872f9a058","cell_type":"code","source":"#X_full.head()\n'''\n'RhythmScore'\n'AudioLoudness'\n'VocalContent'\n'AcousticQuality',\n'InstrumentalScore',\n'LivePerformanceLikelihood',\n'MoodScore',\n'TrackDurationMs',\n'Energy',\n'BeatsPerMinute'\n'''\n'''\nremove_cols = [\"MoodScore\", ]\n\nX_full.drop([\"MoodScore\"],axis = 1, inplace = True)\nX_test_full.drop([\"MoodScore\"],axis = 1, inplace = True)'''\n\n\nX_full[\"NewFeat1\"] = X_full[\"RhythmScore\"] * X_full[\"Energy\"] * X_full[\"AudioLoudness\"]\nX_test_full[\"NewFeat1\"] = X_test_full[\"RhythmScore\"] * X_test_full[\"Energy\"] * X_test_full[\"AudioLoudness\"]\n\ncorr = X_full.corr()\nprint(corr['BeatsPerMinute'].sort_values(ascending=False))\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T09:44:52.941048Z","iopub.execute_input":"2025-09-15T09:44:52.941517Z","iopub.status.idle":"2025-09-15T09:44:53.204234Z","shell.execute_reply.started":"2025-09-15T09:44:52.941483Z","shell.execute_reply":"2025-09-15T09:44:53.203252Z"}},"outputs":[{"name":"stdout","text":"BeatsPerMinute               1.000000\nMoodScore                    0.007059\nTrackDurationMs              0.006637\nRhythmScore                  0.005440\nVocalContent                 0.004876\nLivePerformanceLikelihood    0.003471\nInstrumentalScore            0.001900\nNewFeat1                    -0.000316\nAcousticQuality             -0.000820\nAudioLoudness               -0.003327\nEnergy                      -0.004375\nName: BeatsPerMinute, dtype: float64\n","output_type":"stream"}],"execution_count":14},{"id":"7fd01981-0d85-478d-9377-43bebd136788","cell_type":"code","source":"X_full.dropna(axis = 0, subset = [\"BeatsPerMinute\"], inplace = True)\ny = X_full.BeatsPerMinute\nX_full.drop([\"BeatsPerMinute\"], axis = 1, inplace = True)\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T09:44:53.205763Z","iopub.execute_input":"2025-09-15T09:44:53.206204Z","iopub.status.idle":"2025-09-15T09:44:53.298946Z","shell.execute_reply.started":"2025-09-15T09:44:53.206160Z","shell.execute_reply":"2025-09-15T09:44:53.297781Z"}},"outputs":[],"execution_count":15},{"id":"50fd0450-22c5-4798-b775-9e6a4098113d","cell_type":"code","source":"x_train, x_valid, y_train , y_valid = train_test_split(X_full, y, train_size = 0.8, test_size = 0.2, random_state = 0)","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T09:44:53.300120Z","iopub.execute_input":"2025-09-15T09:44:53.300420Z","iopub.status.idle":"2025-09-15T09:44:53.408921Z","shell.execute_reply.started":"2025-09-15T09:44:53.300399Z","shell.execute_reply":"2025-09-15T09:44:53.407810Z"}},"outputs":[],"execution_count":16},{"id":"80053256-4e07-4fc1-a04d-507bc7a72e30","cell_type":"code","source":"import optuna\n\ndef objective(trial):\n    xgb_params = dict(\n        max_depth=trial.suggest_int(\"max_depth\", 2, 10),\n        learning_rate=trial.suggest_float(\"learning_rate\", 1e-4, 1e-1, log=True),\n        n_estimators=trial.suggest_int(\"n_estimators\", 1000, 8000),\n        min_child_weight=trial.suggest_int(\"min_child_weight\", 1, 10),\n        colsample_bytree=trial.suggest_float(\"colsample_bytree\", 0.2, 1.0),\n        subsample=trial.suggest_float(\"subsample\", 0.2, 1.0),\n        reg_alpha=trial.suggest_float(\"reg_alpha\", 1e-4, 1e2, log=True),\n        reg_lambda=trial.suggest_float(\"reg_lambda\", 1e-4, 1e2, log=True),\n    )\n    xgb = XGBRegressor(**xgb_params)\n    #return None\n    return score_dataset(x_train, y_train, xgb)\n\nstudy = optuna.create_study(direction=\"minimize\")\nstudy.optimize(objective, n_trials=20)\nxgb_params = study.best_params","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T09:45:45.863601Z","iopub.execute_input":"2025-09-15T09:45:45.863889Z","iopub.status.idle":"2025-09-15T10:44:38.330733Z","shell.execute_reply.started":"2025-09-15T09:45:45.863869Z","shell.execute_reply":"2025-09-15T10:44:38.329044Z"}},"outputs":[{"name":"stderr","text":"[I 2025-09-15 09:45:45,867] A new study created in memory with name: no-name-219fe468-89df-448f-88b4-748628bb64ac\n[I 2025-09-15 09:50:47,626] Trial 0 finished with value: 0.23543789929204742 and parameters: {'max_depth': 4, 'learning_rate': 0.010427278413768901, 'n_estimators': 6065, 'min_child_weight': 5, 'colsample_bytree': 0.49494147604026895, 'subsample': 0.48501450789821354, 'reg_alpha': 0.01893972897659729, 'reg_lambda': 0.0011036699125652196}. Best is trial 0 with value: 0.23543789929204742.\n[I 2025-09-15 09:52:03,478] Trial 1 finished with value: 0.23519607799783226 and parameters: {'max_depth': 2, 'learning_rate': 0.0003595997639309251, 'n_estimators': 2259, 'min_child_weight': 4, 'colsample_bytree': 0.9492700425229308, 'subsample': 0.5544110958364792, 'reg_alpha': 0.0004788949917797741, 'reg_lambda': 19.942856739687016}. Best is trial 1 with value: 0.23519607799783226.\n[I 2025-09-15 09:57:43,773] Trial 2 finished with value: 0.23519523063998976 and parameters: {'max_depth': 3, 'learning_rate': 0.003096774764594053, 'n_estimators': 7791, 'min_child_weight': 9, 'colsample_bytree': 0.530297445713459, 'subsample': 0.5672301406973346, 'reg_alpha': 8.923604855982322, 'reg_lambda': 0.06871442251940947}. Best is trial 2 with value: 0.23519523063998976.\n[I 2025-09-15 10:08:54,429] Trial 3 finished with value: 0.23527048088757951 and parameters: {'max_depth': 8, 'learning_rate': 0.0011386263699216313, 'n_estimators': 6021, 'min_child_weight': 7, 'colsample_bytree': 0.7250351591390038, 'subsample': 0.5067242620783299, 'reg_alpha': 0.3329622032714471, 'reg_lambda': 2.904525785311061}. Best is trial 2 with value: 0.23519523063998976.\n[I 2025-09-15 10:11:50,667] Trial 4 finished with value: 0.23516363408924248 and parameters: {'max_depth': 8, 'learning_rate': 0.000999883146703598, 'n_estimators': 1373, 'min_child_weight': 1, 'colsample_bytree': 0.974939477602841, 'subsample': 0.67101012209107, 'reg_alpha': 0.0003981826506100617, 'reg_lambda': 66.07368004672763}. Best is trial 4 with value: 0.23516363408924248.\n[I 2025-09-15 10:18:12,189] Trial 5 finished with value: 0.23524212814844578 and parameters: {'max_depth': 5, 'learning_rate': 0.005474799208248395, 'n_estimators': 5741, 'min_child_weight': 8, 'colsample_bytree': 0.6164450416882481, 'subsample': 0.8818699287354639, 'reg_alpha': 36.10871347331101, 'reg_lambda': 0.0048002952053797215}. Best is trial 4 with value: 0.23516363408924248.\n[I 2025-09-15 10:23:25,178] Trial 6 finished with value: 0.23517121114849554 and parameters: {'max_depth': 4, 'learning_rate': 0.0008803762211027385, 'n_estimators': 6218, 'min_child_weight': 5, 'colsample_bytree': 0.49103580634514926, 'subsample': 0.5226613763271276, 'reg_alpha': 0.30845441013761915, 'reg_lambda': 0.0003347894568323307}. Best is trial 4 with value: 0.23516363408924248.\n[I 2025-09-15 10:30:06,785] Trial 7 finished with value: 0.23517670122595152 and parameters: {'max_depth': 5, 'learning_rate': 0.0009840988132021505, 'n_estimators': 6869, 'min_child_weight': 4, 'colsample_bytree': 0.782930415341023, 'subsample': 0.9779212066720022, 'reg_alpha': 7.659473372055955, 'reg_lambda': 0.0022756673226652737}. Best is trial 4 with value: 0.23516363408924248.\n[I 2025-09-15 10:35:37,577] Trial 8 finished with value: 0.2396426315204147 and parameters: {'max_depth': 9, 'learning_rate': 0.03231315139410838, 'n_estimators': 2832, 'min_child_weight': 7, 'colsample_bytree': 0.3051683369446983, 'subsample': 0.4709513219949666, 'reg_alpha': 0.004374816221700132, 'reg_lambda': 0.011544613975437412}. Best is trial 4 with value: 0.23516363408924248.\n[I 2025-09-15 10:38:27,823] Trial 9 finished with value: 0.23550762050514087 and parameters: {'max_depth': 2, 'learning_rate': 0.06854882495256633, 'n_estimators': 4922, 'min_child_weight': 9, 'colsample_bytree': 0.45576787599059465, 'subsample': 0.4164856307771837, 'reg_alpha': 0.05540185551168568, 'reg_lambda': 1.1204151091023968}. Best is trial 4 with value: 0.23516363408924248.\n[I 2025-09-15 10:40:27,256] Trial 10 finished with value: 0.2352178453258009 and parameters: {'max_depth': 7, 'learning_rate': 0.0001363985539461767, 'n_estimators': 1190, 'min_child_weight': 1, 'colsample_bytree': 0.9822705669715607, 'subsample': 0.7653730795623805, 'reg_alpha': 0.00030467078446030015, 'reg_lambda': 84.59207906796226}. Best is trial 4 with value: 0.23516363408924248.\n[W 2025-09-15 10:44:38,274] Trial 11 failed with parameters: {'max_depth': 10, 'learning_rate': 0.000865801018247455, 'n_estimators': 3578, 'min_child_weight': 1, 'colsample_bytree': 0.28396836630273, 'subsample': 0.26438070958103776, 'reg_alpha': 0.654198508345288, 'reg_lambda': 0.00021296741490513523} because of the following error: KeyboardInterrupt().\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\", line 201, in _run_trial\n    value_or_values = func(trial)\n                      ^^^^^^^^^^^\n  File \"/tmp/ipykernel_36/765470191.py\", line 16, in objective\n    return score_dataset(x_train, y_train, xgb)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/ipykernel_36/1667807564.py\", line 11, in score_dataset\n    score = cross_val_score(\n            ^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 515, in cross_val_score\n    cv_results = cross_validate(\n                 ^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 266, in cross_validate\n    results = parallel(\n              ^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/utils/parallel.py\", line 63, in __call__\n    return super().__call__(iterable_with_config)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/joblib/parallel.py\", line 1986, in __call__\n    return output if self.return_generator else list(output)\n                                                ^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/joblib/parallel.py\", line 1914, in _get_sequential_output\n    res = func(*args, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/utils/parallel.py\", line 123, in __call__\n    return self.function(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 686, in _fit_and_score\n    estimator.fit(X_train, y_train, **fit_params)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 1090, in fit\n    self._Booster = train(\n                    ^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/training.py\", line 181, in train\n    bst.update(dtrain, i, obj)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 2051, in update\n    _LIB.XGBoosterUpdateOneIter(\nKeyboardInterrupt\n[W 2025-09-15 10:44:38,289] Trial 11 failed with value None.\n","output_type":"stream"},{"traceback":["\u001b[0;31m---------------------------------------------------------------------------\u001b[0m","\u001b[0;31mKeyboardInterrupt\u001b[0m                         Traceback (most recent call last)","\u001b[0;32m/tmp/ipykernel_36/765470191.py\u001b[0m in \u001b[0;36m<cell line: 0>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     17\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     18\u001b[0m \u001b[0mstudy\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0moptuna\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcreate_study\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdirection\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"minimize\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 19\u001b[0;31m \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0moptimize\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mobjective\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mn_trials\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m20\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     20\u001b[0m \u001b[0mxgb_params\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbest_params\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/study.py\u001b[0m in \u001b[0;36moptimize\u001b[0;34m(self, func, n_trials, timeout, n_jobs, catch, callbacks, gc_after_trial, show_progress_bar)\u001b[0m\n\u001b[1;32m    487\u001b[0m                 \u001b[0mIf\u001b[0m \u001b[0mnested\u001b[0m \u001b[0minvocation\u001b[0m \u001b[0mof\u001b[0m \u001b[0mthis\u001b[0m \u001b[0mmethod\u001b[0m \u001b[0moccurs\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    488\u001b[0m         \"\"\"\n\u001b[0;32m--> 489\u001b[0;31m         _optimize(\n\u001b[0m\u001b[1;32m    490\u001b[0m             \u001b[0mstudy\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    491\u001b[0m             \u001b[0mfunc\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mfunc\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_optimize\u001b[0;34m(study, func, n_trials, timeout, n_jobs, catch, callbacks, gc_after_trial, show_progress_bar)\u001b[0m\n\u001b[1;32m     62\u001b[0m     \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     63\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mn_jobs\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;36m1\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 64\u001b[0;31m             _optimize_sequential(\n\u001b[0m\u001b[1;32m     65\u001b[0m                 \u001b[0mstudy\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     66\u001b[0m                 \u001b[0mfunc\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_optimize_sequential\u001b[0;34m(study, func, n_trials, timeout, catch, callbacks, gc_after_trial, reseed_sampler_rng, time_start, progress_bar)\u001b[0m\n\u001b[1;32m    159\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    160\u001b[0m         \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 161\u001b[0;31m             \u001b[0mfrozen_trial\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0m_run_trial\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mstudy\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcatch\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    162\u001b[0m         \u001b[0;32mfinally\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    163\u001b[0m             \u001b[0;31m# The following line mitigates memory problems that can be occurred in some\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_run_trial\u001b[0;34m(study, func, catch)\u001b[0m\n\u001b[1;32m    251\u001b[0m         \u001b[0;32mand\u001b[0m \u001b[0;32mnot\u001b[0m \u001b[0misinstance\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mfunc_err\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcatch\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    252\u001b[0m     ):\n\u001b[0;32m--> 253\u001b[0;31m         \u001b[0;32mraise\u001b[0m \u001b[0mfunc_err\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    254\u001b[0m     \u001b[0;32mreturn\u001b[0m \u001b[0mfrozen_trial\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    255\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_run_trial\u001b[0;34m(study, func, catch)\u001b[0m\n\u001b[1;32m    199\u001b[0m     \u001b[0;32mwith\u001b[0m \u001b[0mget_heartbeat_thread\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrial\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_trial_id\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_storage\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    200\u001b[0m         \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 201\u001b[0;31m             \u001b[0mvalue_or_values\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrial\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    202\u001b[0m         \u001b[0;32mexcept\u001b[0m \u001b[0mexceptions\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mTrialPruned\u001b[0m \u001b[0;32mas\u001b[0m \u001b[0me\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    203\u001b[0m             \u001b[0;31m# TODO(mamu): Handle multi-objective cases.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/tmp/ipykernel_36/765470191.py\u001b[0m in \u001b[0;36mobjective\u001b[0;34m(trial)\u001b[0m\n\u001b[1;32m     14\u001b[0m     \u001b[0mxgb\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mXGBRegressor\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m**\u001b[0m\u001b[0mxgb_params\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     15\u001b[0m     \u001b[0;31m#return None\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 16\u001b[0;31m     \u001b[0;32mreturn\u001b[0m \u001b[0mscore_dataset\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mx_train\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0my_train\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mxgb\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     17\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     18\u001b[0m \u001b[0mstudy\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0moptuna\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcreate_study\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdirection\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"minimize\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/tmp/ipykernel_36/1667807564.py\u001b[0m in \u001b[0;36mscore_dataset\u001b[0;34m(X, y, model)\u001b[0m\n\u001b[1;32m      9\u001b[0m     \u001b[0;31m# Metric for Housing competition is RMSLE (Root Mean Squared Log Error)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     10\u001b[0m     \u001b[0mlog_y\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mnp\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mlog\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0my\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 11\u001b[0;31m     score = cross_val_score(\n\u001b[0m\u001b[1;32m     12\u001b[0m         \u001b[0mmodel\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mX\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mlog_y\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcv\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m5\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mscoring\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"neg_mean_squared_error\"\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     13\u001b[0m     )\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\u001b[0m in \u001b[0;36mcross_val_score\u001b[0;34m(estimator, X, y, groups, scoring, cv, n_jobs, verbose, fit_params, pre_dispatch, error_score)\u001b[0m\n\u001b[1;32m    513\u001b[0m     \u001b[0mscorer\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcheck_scoring\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mestimator\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mscoring\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mscoring\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    514\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 515\u001b[0;31m     cv_results = cross_validate(\n\u001b[0m\u001b[1;32m    516\u001b[0m         \u001b[0mestimator\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mestimator\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    517\u001b[0m         \u001b[0mX\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mX\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\u001b[0m in \u001b[0;36mcross_validate\u001b[0;34m(estimator, X, y, groups, scoring, cv, n_jobs, verbose, fit_params, pre_dispatch, return_train_score, return_estimator, error_score)\u001b[0m\n\u001b[1;32m    264\u001b[0m     \u001b[0;31m# independent, and that it is pickle-able.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    265\u001b[0m     \u001b[0mparallel\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mParallel\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mn_jobs\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mn_jobs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mverbose\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mverbose\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mpre_dispatch\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mpre_dispatch\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 266\u001b[0;31m     results = parallel(\n\u001b[0m\u001b[1;32m    267\u001b[0m         delayed(_fit_and_score)(\n\u001b[1;32m    268\u001b[0m             \u001b[0mclone\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mestimator\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/utils/parallel.py\u001b[0m in \u001b[0;36m__call__\u001b[0;34m(self, iterable)\u001b[0m\n\u001b[1;32m     61\u001b[0m             \u001b[0;32mfor\u001b[0m \u001b[0mdelayed_func\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0margs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mkwargs\u001b[0m \u001b[0;32min\u001b[0m \u001b[0miterable\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     62\u001b[0m         )\n\u001b[0;32m---> 63\u001b[0;31m         \u001b[0;32mreturn\u001b[0m \u001b[0msuper\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m__call__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0miterable_with_config\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     64\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     65\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/joblib/parallel.py\u001b[0m in \u001b[0;36m__call__\u001b[0;34m(self, iterable)\u001b[0m\n\u001b[1;32m   1984\u001b[0m             \u001b[0moutput\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_get_sequential_output\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0miterable\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1985\u001b[0m             \u001b[0mnext\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0moutput\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1986\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0moutput\u001b[0m \u001b[0;32mif\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mreturn_generator\u001b[0m \u001b[0;32melse\u001b[0m \u001b[0mlist\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0moutput\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1987\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1988\u001b[0m         \u001b[0;31m# Let's create an ID that uniquely identifies the current call. If the\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/joblib/parallel.py\u001b[0m in \u001b[0;36m_get_sequential_output\u001b[0;34m(self, iterable)\u001b[0m\n\u001b[1;32m   1912\u001b[0m                 \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mn_dispatched_batches\u001b[0m \u001b[0;34m+=\u001b[0m \u001b[0;36m1\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1913\u001b[0m                 \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mn_dispatched_tasks\u001b[0m \u001b[0;34m+=\u001b[0m \u001b[0;36m1\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1914\u001b[0;31m                 \u001b[0mres\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0margs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mkwargs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1915\u001b[0m                 \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mn_completed_tasks\u001b[0m \u001b[0;34m+=\u001b[0m \u001b[0;36m1\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1916\u001b[0m                 \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mprint_progress\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/utils/parallel.py\u001b[0m in \u001b[0;36m__call__\u001b[0;34m(self, *args, **kwargs)\u001b[0m\n\u001b[1;32m    121\u001b[0m             \u001b[0mconfig\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0;34m{\u001b[0m\u001b[0;34m}\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    122\u001b[0m         \u001b[0;32mwith\u001b[0m \u001b[0mconfig_context\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m**\u001b[0m\u001b[0mconfig\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 123\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfunction\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0margs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mkwargs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\u001b[0m in \u001b[0;36m_fit_and_score\u001b[0;34m(estimator, X, y, scorer, train, test, verbose, parameters, fit_params, return_train_score, return_parameters, return_n_test_samples, return_times, return_estimator, split_progress, candidate_progress, error_score)\u001b[0m\n\u001b[1;32m    684\u001b[0m             \u001b[0mestimator\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfit\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_train\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mfit_params\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    685\u001b[0m         \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 686\u001b[0;31m             \u001b[0mestimator\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfit\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_train\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0my_train\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mfit_params\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    687\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    688\u001b[0m     \u001b[0;32mexcept\u001b[0m \u001b[0mException\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/xgboost/core.py\u001b[0m in \u001b[0;36minner_f\u001b[0;34m(*args, **kwargs)\u001b[0m\n\u001b[1;32m    728\u001b[0m             \u001b[0;32mfor\u001b[0m \u001b[0mk\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0marg\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mzip\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0msig\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mparameters\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0margs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    729\u001b[0m                 \u001b[0mkwargs\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mk\u001b[0m\u001b[0;34m]\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0marg\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 730\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m**\u001b[0m\u001b[0mkwargs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    731\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    732\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0minner_f\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\u001b[0m in \u001b[0;36mfit\u001b[0;34m(self, X, y, sample_weight, base_margin, eval_set, eval_metric, early_stopping_rounds, verbose, xgb_model, sample_weight_eval_set, base_margin_eval_set, feature_weights, callbacks)\u001b[0m\n\u001b[1;32m   1088\u001b[0m                 \u001b[0mxgb_model\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0meval_metric\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mparams\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mearly_stopping_rounds\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcallbacks\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1089\u001b[0m             )\n\u001b[0;32m-> 1090\u001b[0;31m             self._Booster = train(\n\u001b[0m\u001b[1;32m   1091\u001b[0m                 \u001b[0mparams\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1092\u001b[0m                 \u001b[0mtrain_dmatrix\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/xgboost/core.py\u001b[0m in \u001b[0;36minner_f\u001b[0;34m(*args, **kwargs)\u001b[0m\n\u001b[1;32m    728\u001b[0m             \u001b[0;32mfor\u001b[0m \u001b[0mk\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0marg\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mzip\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0msig\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mparameters\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0margs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    729\u001b[0m                 \u001b[0mkwargs\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mk\u001b[0m\u001b[0;34m]\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0marg\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 730\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m**\u001b[0m\u001b[0mkwargs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    731\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    732\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0minner_f\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/xgboost/training.py\u001b[0m in \u001b[0;36mtrain\u001b[0;34m(params, dtrain, num_boost_round, evals, obj, feval, maximize, early_stopping_rounds, evals_result, verbose_eval, xgb_model, callbacks, custom_metric)\u001b[0m\n\u001b[1;32m    179\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mcb_container\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbefore_iteration\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mbst\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mi\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdtrain\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mevals\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    180\u001b[0m             \u001b[0;32mbreak\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 181\u001b[0;31m         \u001b[0mbst\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mupdate\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdtrain\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mi\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mobj\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    182\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mcb_container\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mafter_iteration\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mbst\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mi\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdtrain\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mevals\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    183\u001b[0m             \u001b[0;32mbreak\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/xgboost/core.py\u001b[0m in \u001b[0;36mupdate\u001b[0;34m(self, dtrain, iteration, fobj)\u001b[0m\n\u001b[1;32m   2049\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mfobj\u001b[0m \u001b[0;32mis\u001b[0m \u001b[0;32mNone\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2050\u001b[0m             _check_call(\n\u001b[0;32m-> 2051\u001b[0;31m                 _LIB.XGBoosterUpdateOneIter(\n\u001b[0m\u001b[1;32m   2052\u001b[0m                     \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mhandle\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mctypes\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mc_int\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0miteration\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdtrain\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mhandle\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2053\u001b[0m                 )\n","\u001b[0;31mKeyboardInterrupt\u001b[0m: "],"ename":"KeyboardInterrupt","evalue":"","output_type":"error"}],"execution_count":22},{"id":"5fe1c529-f2ca-4505-86eb-1862024192e1","cell_type":"code","source":"from sklearn.compose import ColumnTransformer\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.impute import SimpleImputer\nfrom xgboost import XGBRegressor\nfrom sklearn.metrics import mean_absolute_error\n\nnum_transformer = SimpleImputer(strategy = \"mean\")\n\npreprocess = ColumnTransformer(transformers = [(\"num\", num_transformer, x_train.columns)])\n\n\n\n\nestimators = 1000\nlearning_rate = 0.01\n\n\n'''\nxgb_params = dict(\n    max_depth=6,           # maximum depth of each tree - try 2 to 10\n    learning_rate=0.01,    # effect of each tree - try 0.0001 to 0.1\n    n_estimators=1000,     # number of trees (that is, boosting rounds) - try 1000 to 8000\n    min_child_weight=1,    # minimum number of houses in a leaf - try 1 to 10\n    colsample_bytree=0.7,  # fraction of features (columns) per tree - try 0.2 to 1.0\n    subsample=0.7,         # fraction of instances (rows) per tree - try 0.2 to 1.0\n    reg_alpha=0.5,         # L1 regularization (like LASSO) - try 0.0 to 10.0\n    reg_lambda=1.0,        # L2 regularization (like Ridge) - try 0.0 to 10.0\n    num_parallel_tree=1,   # set > 1 for boosted random forests\n)'''\nmy_model = XGBRegressor(**xgb_params)\n\n\nmodel = Pipeline(steps = [(\"preprocess\", preprocess), (\"model\", my_model )])\n\nmodel.fit(x_train, y_train)\n\npreds = model.predict(x_valid)\n\nmae = mean_absolute_error(preds, y_valid)\n\nprint(f\"Mae: {mae}, Estimator = {estimators}, learning rate = {learn_rate}\")\n\n#Mae: 21.187070066472046, Estimator = 4000, learning rate = 0.001\n\n#Mae: 21.30098858285947, Estimator = 10000, learning rate = 0.01 (Removed mood score)\n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-15T10:45:35.659857Z","iopub.execute_input":"2025-09-15T10:45:35.660162Z","iopub.status.idle":"2025-09-15T10:45:53.622925Z","shell.execute_reply.started":"2025-09-15T10:45:35.660138Z","shell.execute_reply":"2025-09-15T10:45:53.622085Z"}},"outputs":[{"name":"stdout","text":"Mae: 21.18731620338613, Estimator = 1000, learning rate = 0.05\n","output_type":"stream"}],"execution_count":25},{"id":"f532d2cc-d4af-4259-80ee-797b865e93ae","cell_type":"code","source":"final_preds = model.predict(X_test_full)\n\noutput = pd.DataFrame({'id': X_test_full.index,\n                       'BeatsPerMinute': final_preds})\noutput.to_csv('submission.csv', index=False)","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-09-08T08:33:08.196118Z","iopub.execute_input":"2025-09-08T08:33:08.196390Z","iopub.status.idle":"2025-09-08T08:33:16.165908Z","shell.execute_reply.started":"2025-09-08T08:33:08.196369Z","shell.execute_reply":"2025-09-08T08:33:16.164765Z"}},"outputs":[],"execution_count":37}]}
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "20bdc4ec",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T13:13:37.435587Z",
+     "iopub.status.busy": "2025-09-15T13:13:37.434328Z",
+     "iopub.status.idle": "2025-09-15T13:13:41.431489Z",
+     "shell.execute_reply": "2025-09-15T13:13:41.430574Z"
+    },
+    "papermill": {
+     "duration": 4.004141,
+     "end_time": "2025-09-15T13:13:41.433360",
+     "exception": false,
+     "start_time": "2025-09-15T13:13:37.429219",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n",
+    "from xgboost import XGBRegressor\n",
+    "import numpy as np\n",
+    "from sklearn.model_selection import KFold, cross_val_score\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "f5e80660",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T13:13:41.439973Z",
+     "iopub.status.busy": "2025-09-15T13:13:41.439575Z",
+     "iopub.status.idle": "2025-09-15T13:13:43.192379Z",
+     "shell.execute_reply": "2025-09-15T13:13:43.191493Z"
+    },
+    "papermill": {
+     "duration": 1.757855,
+     "end_time": "2025-09-15T13:13:43.194260",
+     "exception": false,
+     "start_time": "2025-09-15T13:13:41.436405",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "from sklearn.model_selection import train_test_split\n",
+    "\n",
+    "#Importing Data\n",
+    "X_full = pd.read_csv('/kaggle/input/playground-series-s5e9/train.csv', index_col='id')\n",
+    "X_test_full = pd.read_csv('/kaggle/input/playground-series-s5e9/test.csv', index_col='id')\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "41449b63",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T13:13:43.201488Z",
+     "iopub.status.busy": "2025-09-15T13:13:43.201146Z",
+     "iopub.status.idle": "2025-09-15T13:13:43.207177Z",
+     "shell.execute_reply": "2025-09-15T13:13:43.206275Z"
+    },
+    "papermill": {
+     "duration": 0.011385,
+     "end_time": "2025-09-15T13:13:43.208642",
+     "exception": false,
+     "start_time": "2025-09-15T13:13:43.197257",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def score_dataset(X, y, model=XGBRegressor()):\n",
+    "    # Label encoding for categoricals\n",
+    "    #\n",
+    "    # Label encoding is good for XGBoost and RandomForest, but one-hot\n",
+    "    # would be better for models like Lasso or Ridge. The `cat.codes`\n",
+    "    # attribute holds the category levels.\n",
+    "    for colname in X.select_dtypes([\"category\"]):\n",
+    "        X[colname] = X[colname].cat.codes\n",
+    "    # Metric for Housing competition is RMSLE (Root Mean Squared Log Error)\n",
+    "    log_y = np.log(y)\n",
+    "    score = cross_val_score(\n",
+    "        model, X, log_y, cv=5, scoring=\"neg_mean_squared_error\",\n",
+    "    )\n",
+    "    score = -1 * score.mean()\n",
+    "    score = np.sqrt(score)\n",
+    "    return score"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "36ae5e0b",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T13:13:43.215580Z",
+     "iopub.status.busy": "2025-09-15T13:13:43.214611Z",
+     "iopub.status.idle": "2025-09-15T13:13:43.469715Z",
+     "shell.execute_reply": "2025-09-15T13:13:43.468646Z"
+    },
+    "papermill": {
+     "duration": 0.260107,
+     "end_time": "2025-09-15T13:13:43.471287",
+     "exception": false,
+     "start_time": "2025-09-15T13:13:43.211180",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "BeatsPerMinute               1.000000\n",
+      "MoodScore                    0.007059\n",
+      "TrackDurationMs              0.006637\n",
+      "RhythmScore                  0.005440\n",
+      "VocalContent                 0.004876\n",
+      "LivePerformanceLikelihood    0.003471\n",
+      "InstrumentalScore            0.001900\n",
+      "NewFeat1                    -0.000316\n",
+      "AcousticQuality             -0.000820\n",
+      "AudioLoudness               -0.003327\n",
+      "Energy                      -0.004375\n",
+      "Name: BeatsPerMinute, dtype: float64\n"
+     ]
+    }
+   ],
+   "source": [
+    "#X_full.head()\n",
+    "'''\n",
+    "'RhythmScore'\n",
+    "'AudioLoudness'\n",
+    "'VocalContent'\n",
+    "'AcousticQuality',\n",
+    "'InstrumentalScore',\n",
+    "'LivePerformanceLikelihood',\n",
+    "'MoodScore',\n",
+    "'TrackDurationMs',\n",
+    "'Energy',\n",
+    "'BeatsPerMinute'\n",
+    "'''\n",
+    "'''\n",
+    "remove_cols = [\"MoodScore\", ]\n",
+    "\n",
+    "X_full.drop([\"MoodScore\"],axis = 1, inplace = True)\n",
+    "X_test_full.drop([\"MoodScore\"],axis = 1, inplace = True)'''\n",
+    "\n",
+    "\n",
+    "X_full[\"NewFeat1\"] = X_full[\"RhythmScore\"] * X_full[\"Energy\"] * X_full[\"AudioLoudness\"]\n",
+    "X_test_full[\"NewFeat1\"] = X_test_full[\"RhythmScore\"] * X_test_full[\"Energy\"] * X_test_full[\"AudioLoudness\"]\n",
+    "\n",
+    "corr = X_full.corr()\n",
+    "print(corr['BeatsPerMinute'].sort_values(ascending=False))\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "5152f114",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T13:13:43.478217Z",
+     "iopub.status.busy": "2025-09-15T13:13:43.477340Z",
+     "iopub.status.idle": "2025-09-15T13:13:43.567407Z",
+     "shell.execute_reply": "2025-09-15T13:13:43.566276Z"
+    },
+    "papermill": {
+     "duration": 0.09511,
+     "end_time": "2025-09-15T13:13:43.569164",
+     "exception": false,
+     "start_time": "2025-09-15T13:13:43.474054",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "X_full.dropna(axis = 0, subset = [\"BeatsPerMinute\"], inplace = True)\n",
+    "y = X_full.BeatsPerMinute\n",
+    "X_full.drop([\"BeatsPerMinute\"], axis = 1, inplace = True)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "255ab304",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T13:13:43.575596Z",
+     "iopub.status.busy": "2025-09-15T13:13:43.575160Z",
+     "iopub.status.idle": "2025-09-15T13:13:43.675194Z",
+     "shell.execute_reply": "2025-09-15T13:13:43.673893Z"
+    },
+    "papermill": {
+     "duration": 0.105143,
+     "end_time": "2025-09-15T13:13:43.676940",
+     "exception": false,
+     "start_time": "2025-09-15T13:13:43.571797",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "x_train, x_valid, y_train , y_valid = train_test_split(X_full, y, train_size = 0.8, test_size = 0.2, random_state = 0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "a6fcbc35",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T13:13:43.683037Z",
+     "iopub.status.busy": "2025-09-15T13:13:43.682733Z",
+     "iopub.status.idle": "2025-09-15T14:36:18.161778Z",
+     "shell.execute_reply": "2025-09-15T14:36:18.160626Z"
+    },
+    "papermill": {
+     "duration": 4954.486398,
+     "end_time": "2025-09-15T14:36:18.165898",
+     "exception": false,
+     "start_time": "2025-09-15T13:13:43.679500",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[I 2025-09-15 13:13:44,252] A new study created in memory with name: no-name-6097b745-1222-4e85-af42-c2f42bdbb029\n",
+      "[I 2025-09-15 13:15:13,048] Trial 0 finished with value: 0.23520493156168218 and parameters: {'max_depth': 2, 'learning_rate': 0.0008757220596618098, 'n_estimators': 2624, 'min_child_weight': 5, 'colsample_bytree': 0.8233398125466476, 'subsample': 0.24809617564364325, 'reg_alpha': 42.52977174570799, 'reg_lambda': 0.00745845020851831}. Best is trial 0 with value: 0.23520493156168218.\n",
+      "[I 2025-09-15 13:25:13,124] Trial 1 finished with value: 0.2351972289446508 and parameters: {'max_depth': 8, 'learning_rate': 0.0001921658111114322, 'n_estimators': 6487, 'min_child_weight': 10, 'colsample_bytree': 0.4406510511350666, 'subsample': 0.7916202897507028, 'reg_alpha': 0.03211992918488003, 'reg_lambda': 0.0016416393012549393}. Best is trial 1 with value: 0.2351972289446508.\n",
+      "[I 2025-09-15 13:32:09,296] Trial 2 finished with value: 0.235187326559378 and parameters: {'max_depth': 8, 'learning_rate': 0.0007067724785112841, 'n_estimators': 4415, 'min_child_weight': 7, 'colsample_bytree': 0.5454163036729465, 'subsample': 0.6205204424567072, 'reg_alpha': 0.00018907890247793962, 'reg_lambda': 2.3301662514763293}. Best is trial 2 with value: 0.235187326559378.\n",
+      "[I 2025-09-15 13:32:54,326] Trial 3 finished with value: 0.23517382776472429 and parameters: {'max_depth': 2, 'learning_rate': 0.006744955481882879, 'n_estimators': 1385, 'min_child_weight': 5, 'colsample_bytree': 0.9152902804446887, 'subsample': 0.2738897582894924, 'reg_alpha': 3.0905916069549475, 'reg_lambda': 0.007575680244392661}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 13:36:33,001] Trial 4 finished with value: 0.2351843157453931 and parameters: {'max_depth': 9, 'learning_rate': 0.0014019396728409937, 'n_estimators': 1523, 'min_child_weight': 7, 'colsample_bytree': 0.8868046723636911, 'subsample': 0.5423793855479773, 'reg_alpha': 1.8538486326727257, 'reg_lambda': 0.0008667771294316342}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 13:42:01,250] Trial 5 finished with value: 0.23519743351906422 and parameters: {'max_depth': 4, 'learning_rate': 0.0022312938147660013, 'n_estimators': 6609, 'min_child_weight': 5, 'colsample_bytree': 0.2650661081693563, 'subsample': 0.5570366088558536, 'reg_alpha': 8.099686207330333, 'reg_lambda': 0.06530970572777395}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 13:45:59,012] Trial 6 finished with value: 0.23519147451736822 and parameters: {'max_depth': 3, 'learning_rate': 0.00010516898384737361, 'n_estimators': 6414, 'min_child_weight': 5, 'colsample_bytree': 0.9013853269861851, 'subsample': 0.9386709666768207, 'reg_alpha': 2.156005592700741, 'reg_lambda': 2.61979423985797}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 13:51:32,831] Trial 7 finished with value: 0.2351963591671596 and parameters: {'max_depth': 5, 'learning_rate': 0.0004767419457452269, 'n_estimators': 6096, 'min_child_weight': 6, 'colsample_bytree': 0.26553606106035316, 'subsample': 0.5485586265928613, 'reg_alpha': 0.0377426550413834, 'reg_lambda': 0.0034090115051238047}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 13:54:53,975] Trial 8 finished with value: 0.23535226332586787 and parameters: {'max_depth': 7, 'learning_rate': 0.0056713194148156655, 'n_estimators': 2452, 'min_child_weight': 7, 'colsample_bytree': 0.650132201893106, 'subsample': 0.5017931664320983, 'reg_alpha': 0.012624576448852443, 'reg_lambda': 16.6745064617014}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 13:58:06,628] Trial 9 finished with value: 0.23526255970931292 and parameters: {'max_depth': 2, 'learning_rate': 0.01495925177952963, 'n_estimators': 6111, 'min_child_weight': 9, 'colsample_bytree': 0.8111264050929787, 'subsample': 0.4345271917667713, 'reg_alpha': 0.00014041120977456418, 'reg_lambda': 0.0021695315994135307}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 14:03:00,450] Trial 10 finished with value: 0.24543304369930352 and parameters: {'max_depth': 6, 'learning_rate': 0.08179873598339375, 'n_estimators': 3983, 'min_child_weight': 1, 'colsample_bytree': 0.9746957855113653, 'subsample': 0.23137069759251772, 'reg_alpha': 0.36335120574705093, 'reg_lambda': 0.07357653791418194}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 14:06:12,389] Trial 11 finished with value: 0.23545976490186288 and parameters: {'max_depth': 10, 'learning_rate': 0.006525039492457373, 'n_estimators': 1120, 'min_child_weight': 3, 'colsample_bytree': 0.6935639025446704, 'subsample': 0.35305636937144, 'reg_alpha': 0.8834094472104103, 'reg_lambda': 0.00015591251687724453}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 14:07:41,232] Trial 12 finished with value: 0.23520712324366938 and parameters: {'max_depth': 10, 'learning_rate': 0.031091994426164345, 'n_estimators': 1397, 'min_child_weight': 3, 'colsample_bytree': 0.9935359812707636, 'subsample': 0.7267971504652221, 'reg_alpha': 89.3030941257267, 'reg_lambda': 0.00018274295324499857}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 14:13:48,860] Trial 13 finished with value: 0.23522436825867732 and parameters: {'max_depth': 9, 'learning_rate': 0.0016583136210343824, 'n_estimators': 2780, 'min_child_weight': 8, 'colsample_bytree': 0.7938328528018551, 'subsample': 0.3646612483212846, 'reg_alpha': 6.948233786051417, 'reg_lambda': 0.011764779589642954}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 14:21:21,258] Trial 14 finished with value: 0.23552323334002254 and parameters: {'max_depth': 5, 'learning_rate': 0.005522090287830862, 'n_estimators': 7980, 'min_child_weight': 3, 'colsample_bytree': 0.8795416340897784, 'subsample': 0.6653451067624326, 'reg_alpha': 0.2428541461927016, 'reg_lambda': 0.0006255432976454876}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 14:23:39,733] Trial 15 finished with value: 0.2359457875601106 and parameters: {'max_depth': 7, 'learning_rate': 0.021307040234443048, 'n_estimators': 1818, 'min_child_weight': 8, 'colsample_bytree': 0.7116070428990913, 'subsample': 0.8677238143926502, 'reg_alpha': 0.006131792068916415, 'reg_lambda': 0.02582263381061782}. Best is trial 3 with value: 0.23517382776472429.\n",
+      "[I 2025-09-15 14:26:55,783] Trial 16 finished with value: 0.23517327913604166 and parameters: {'max_depth': 4, 'learning_rate': 0.00174856246492164, 'n_estimators': 3648, 'min_child_weight': 4, 'colsample_bytree': 0.9180454820193582, 'subsample': 0.3340430955705323, 'reg_alpha': 12.199343700271838, 'reg_lambda': 0.37917700360257917}. Best is trial 16 with value: 0.23517327913604166.\n",
+      "[I 2025-09-15 14:29:26,436] Trial 17 finished with value: 0.23521772991332632 and parameters: {'max_depth': 3, 'learning_rate': 0.011678447170313098, 'n_estimators': 3459, 'min_child_weight': 1, 'colsample_bytree': 0.5061438861041887, 'subsample': 0.32397158259500713, 'reg_alpha': 18.68719683518603, 'reg_lambda': 0.6268641940643226}. Best is trial 16 with value: 0.23517327913604166.\n",
+      "[I 2025-09-15 14:34:02,852] Trial 18 finished with value: 0.23627571110080287 and parameters: {'max_depth': 4, 'learning_rate': 0.051382662700166885, 'n_estimators': 5244, 'min_child_weight': 4, 'colsample_bytree': 0.7529511964807898, 'subsample': 0.2107155071484657, 'reg_alpha': 6.2494176417884075, 'reg_lambda': 96.26672678286297}. Best is trial 16 with value: 0.23517327913604166.\n",
+      "[I 2025-09-15 14:36:18,157] Trial 19 finished with value: 0.2351833180608142 and parameters: {'max_depth': 3, 'learning_rate': 0.0038985274386286895, 'n_estimators': 3450, 'min_child_weight': 2, 'colsample_bytree': 0.3746103746724936, 'subsample': 0.42982486308248524, 'reg_alpha': 0.0010465192845542088, 'reg_lambda': 0.36163287944698924}. Best is trial 16 with value: 0.23517327913604166.\n"
+     ]
+    }
+   ],
+   "source": [
+    "import optuna\n",
+    "\n",
+    "def objective(trial):\n",
+    "    xgb_params = dict(\n",
+    "        max_depth=trial.suggest_int(\"max_depth\", 2, 10),\n",
+    "        learning_rate=trial.suggest_float(\"learning_rate\", 1e-4, 1e-1, log=True),\n",
+    "        n_estimators=trial.suggest_int(\"n_estimators\", 1000, 8000),\n",
+    "        min_child_weight=trial.suggest_int(\"min_child_weight\", 1, 10),\n",
+    "        colsample_bytree=trial.suggest_float(\"colsample_bytree\", 0.2, 1.0),\n",
+    "        subsample=trial.suggest_float(\"subsample\", 0.2, 1.0),\n",
+    "        reg_alpha=trial.suggest_float(\"reg_alpha\", 1e-4, 1e2, log=True),\n",
+    "        reg_lambda=trial.suggest_float(\"reg_lambda\", 1e-4, 1e2, log=True),\n",
+    "    )\n",
+    "    xgb = XGBRegressor(**xgb_params)\n",
+    "    #return None\n",
+    "    return score_dataset(x_train, y_train, xgb)\n",
+    "\n",
+    "study = optuna.create_study(direction=\"minimize\")\n",
+    "study.optimize(objective, n_trials=20)\n",
+    "xgb_params = study.best_params"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "ab4db4d5",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T14:36:18.175316Z",
+     "iopub.status.busy": "2025-09-15T14:36:18.174941Z",
+     "iopub.status.idle": "2025-09-15T14:37:02.585004Z",
+     "shell.execute_reply": "2025-09-15T14:37:02.584188Z"
+    },
+    "papermill": {
+     "duration": 44.417497,
+     "end_time": "2025-09-15T14:37:02.586995",
+     "exception": false,
+     "start_time": "2025-09-15T14:36:18.169498",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "from sklearn.compose import ColumnTransformer\n",
+    "from sklearn.pipeline import Pipeline\n",
+    "from sklearn.impute import SimpleImputer\n",
+    "from xgboost import XGBRegressor\n",
+    "from sklearn.metrics import mean_absolute_error\n",
+    "\n",
+    "num_transformer = SimpleImputer(strategy = \"mean\")\n",
+    "\n",
+    "preprocess = ColumnTransformer(transformers = [(\"num\", num_transformer, x_train.columns)])\n",
+    "\n",
+    "\n",
+    "\n",
+    "\n",
+    "#estimators = 1000\n",
+    "#learning_rate = 0.01\n",
+    "\n",
+    "\n",
+    "'''\n",
+    "xgb_params = dict(\n",
+    "    max_depth=6,           # maximum depth of each tree - try 2 to 10\n",
+    "    learning_rate=0.01,    # effect of each tree - try 0.0001 to 0.1\n",
+    "    n_estimators=1000,     # number of trees (that is, boosting rounds) - try 1000 to 8000\n",
+    "    min_child_weight=1,    # minimum number of houses in a leaf - try 1 to 10\n",
+    "    colsample_bytree=0.7,  # fraction of features (columns) per tree - try 0.2 to 1.0\n",
+    "    subsample=0.7,         # fraction of instances (rows) per tree - try 0.2 to 1.0\n",
+    "    reg_alpha=0.5,         # L1 regularization (like LASSO) - try 0.0 to 10.0\n",
+    "    reg_lambda=1.0,        # L2 regularization (like Ridge) - try 0.0 to 10.0\n",
+    "    num_parallel_tree=1,   # set > 1 for boosted random forests\n",
+    ")'''\n",
+    "\n",
+    "\n",
+    "my_model = XGBRegressor(**xgb_params)\n",
+    "\n",
+    "\n",
+    "model = Pipeline(steps = [(\"preprocess\", preprocess), (\"model\", my_model )])\n",
+    "\n",
+    "model.fit(x_train, y_train)\n",
+    "\n",
+    "preds = model.predict(x_valid)\n",
+    "\n",
+    "mae = mean_absolute_error(preds, y_valid)\n",
+    "\n",
+    "#print(f\"Mae: {mae}, Estimator = {estimators}, learning rate = {learn_rate}\")\n",
+    "\n",
+    "#Mae: 21.187070066472046, Estimator = 4000, learning rate = 0.001\n",
+    "\n",
+    "#Mae: 21.30098858285947, Estimator = 10000, learning rate = 0.01 (Removed mood score)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "id": "4fcc3b8c",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-09-15T14:37:02.595565Z",
+     "iopub.status.busy": "2025-09-15T14:37:02.595250Z",
+     "iopub.status.idle": "2025-09-15T14:37:06.905237Z",
+     "shell.execute_reply": "2025-09-15T14:37:06.904024Z"
+    },
+    "papermill": {
+     "duration": 4.316245,
+     "end_time": "2025-09-15T14:37:06.907136",
+     "exception": false,
+     "start_time": "2025-09-15T14:37:02.590891",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "final_preds = model.predict(X_test_full)\n",
+    "\n",
+    "output = pd.DataFrame({'id': X_test_full.index,\n",
+    "                       'BeatsPerMinute': final_preds})\n",
+    "output.to_csv('submission.csv', index=False)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "databundleVersionId": 13345277,
+     "sourceId": 91720,
+     "sourceType": "competition"
+    }
+   ],
+   "dockerImageVersionId": 31089,
+   "isGpuEnabled": false,
+   "isInternetEnabled": false,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.13"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 5015.926721,
+   "end_time": "2025-09-15T14:37:07.838900",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2025-09-15T13:13:31.912179",
+   "version": "2.6.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
