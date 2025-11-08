@@ -1,1 +1,571 @@
-{"metadata":{"kernelspec":{"language":"python","display_name":"Python 3","name":"python3"},"language_info":{"name":"python","version":"3.11.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":91722,"databundleVersionId":14262372,"sourceType":"competition"}],"dockerImageVersionId":31153,"isInternetEnabled":false,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"code","source":"# This Python 3 environment comes with many helpful analytics libraries installed\n# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n# For example, here's several helpful packages to load\n\nimport numpy as np # linear algebra\nimport pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\nimport pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\nimport optuna\n\n\nfrom sklearn.preprocessing import OneHotEncoder, OrdinalEncoder\nfrom xgboost import XGBRegressor\nfrom sklearn.model_selection import KFold, cross_val_score, train_test_split\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.impute import SimpleImputer\nfrom sklearn.metrics import mean_absolute_error\n# Input data files are available in the read-only \"../input/\" directory\n# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n\nimport os\nfor dirname, _, filenames in os.walk('/kaggle/input'):\n    for filename in filenames:\n        print(os.path.join(dirname, filename))\n\n# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" \n# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session","metadata":{"_uuid":"8f2839f25d086af736a60e9eeb907d3b93b6e0e5","_cell_guid":"b1076dfc-b9ad-4769-8c92-a6c4dae69d19","trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:19:02.394280Z","iopub.execute_input":"2025-11-07T09:19:02.394625Z","iopub.status.idle":"2025-11-07T09:19:03.661108Z","shell.execute_reply.started":"2025-11-07T09:19:02.394596Z","shell.execute_reply":"2025-11-07T09:19:03.660316Z"}},"outputs":[{"name":"stdout","text":"/kaggle/input/playground-series-s5e11/sample_submission.csv\n/kaggle/input/playground-series-s5e11/train.csv\n/kaggle/input/playground-series-s5e11/test.csv\n","output_type":"stream"}],"execution_count":1},{"cell_type":"code","source":"def clean_data_set(train_data, validation_data):\n    return train_data, validation_data","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:19:03.662633Z","iopub.execute_input":"2025-11-07T09:19:03.663140Z","iopub.status.idle":"2025-11-07T09:19:03.667519Z","shell.execute_reply.started":"2025-11-07T09:19:03.663111Z","shell.execute_reply":"2025-11-07T09:19:03.666526Z"}},"outputs":[],"execution_count":2},{"cell_type":"code","source":"def load_data_set(train,validation):    \n    train_data = pd.read_csv(train, index_col='id')\n    validation_data = pd.read_csv(validation, index_col='id')\n    return train_data, validation_data","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:19:03.668512Z","iopub.execute_input":"2025-11-07T09:19:03.668832Z","iopub.status.idle":"2025-11-07T09:19:03.688124Z","shell.execute_reply.started":"2025-11-07T09:19:03.668804Z","shell.execute_reply":"2025-11-07T09:19:03.687086Z"}},"outputs":[],"execution_count":3},{"cell_type":"code","source":"def score_dataset(train_data, train_target, model=XGBRegressor()):\n    for colname in train_data.select_dtypes([\"category\"]):\n        full_data[colname] = train_data[colname].cat.codes\n    log_target = np.log(train_target)\n    \n    score = cross_val_score(\n        model, train_data, log_target, cv=5, scoring=\"neg_mean_squared_error\",\n    )\n    score = -1 * score.mean()\n    score = np.sqrt(score)\n    return score\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:19:03.690260Z","iopub.execute_input":"2025-11-07T09:19:03.690681Z","iopub.status.idle":"2025-11-07T09:19:03.708527Z","shell.execute_reply.started":"2025-11-07T09:19:03.690657Z","shell.execute_reply":"2025-11-07T09:19:03.707499Z"}},"outputs":[],"execution_count":4},{"cell_type":"code","source":"def objective(trial, train_data, train_target):\n    #Intimidating XGB parameters predictors\n    xgb_params = dict(\n        max_depth=trial.suggest_int(\"max_depth\", 2, 10),\n        learning_rate=trial.suggest_float(\"learning_rate\", 1e-4, 1e-1, log=True),\n        n_estimators=trial.suggest_int(\"n_estimators\", 1000, 8000),\n        min_child_weight=trial.suggest_int(\"min_child_weight\", 1, 10),\n        colsample_bytree=trial.suggest_float(\"colsample_bytree\", 0.2, 1.0),\n        subsample=trial.suggest_float(\"subsample\", 0.2, 1.0),\n        reg_alpha=trial.suggest_float(\"reg_alpha\", 1e-4, 1e2, log=True),\n        reg_lambda=trial.suggest_float(\"reg_lambda\", 1e-4, 1e2, log=True),\n    )\n    xgb = XGBRegressor(**xgb_params)\n    return score_dataset(train_data, train_target, xgb)\n\ndef determine_params(train_data, train_target):\n    study = optuna.create_study(direction=\"minimize\")\n    study.optimize(lambda trial: objective(trial, train_data, train_target), n_trials=20)\n    xgb_params = study.best_params\n    return xgb_params\n    \n#my_model = XGBRegressor(**xgb_params)\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:23:24.889530Z","iopub.execute_input":"2025-11-07T09:23:24.889917Z","iopub.status.idle":"2025-11-07T09:23:24.897231Z","shell.execute_reply.started":"2025-11-07T09:23:24.889892Z","shell.execute_reply":"2025-11-07T09:23:24.896252Z"}},"outputs":[],"execution_count":14},{"cell_type":"code","source":"'''\n'annual_income', 'debt_to_income_ratio', 'credit_score', 'loan_amount',\n'interest_rate', \n\n'gender' : 3, \n'marital_status' : 4, \n'education_level': 5,\n'employment_status': 5, \n'loan_purpose': 8, 'grade_subgrade',\n\n\n'loan_paid_back'],\n'''\n\n#corr = X_full.corr()\n#print(corr['loan_paid_back'].sort_values(ascending=False))\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:19:03.735294Z","iopub.execute_input":"2025-11-07T09:19:03.735675Z","iopub.status.idle":"2025-11-07T09:19:03.754002Z","shell.execute_reply.started":"2025-11-07T09:19:03.735648Z","shell.execute_reply":"2025-11-07T09:19:03.752944Z"}},"outputs":[{"execution_count":6,"output_type":"execute_result","data":{"text/plain":"\"\\n'annual_income', 'debt_to_income_ratio', 'credit_score', 'loan_amount',\\n'interest_rate', \\n\\n'gender' : 3, \\n'marital_status' : 4, \\n'education_level': 5,\\n'employment_status': 5, \\n'loan_purpose': 8, 'grade_subgrade',\\n\\n\\n'loan_paid_back'],\\n\""},"metadata":{}}],"execution_count":6},{"cell_type":"code","source":"#Testing Block\n\n'''test = '/kaggle/input/playground-series-s5e11/test.csv'\ntrain = '/kaggle/input/playground-series-s5e11/train.csv'\n    \nfull_data, test_data = load_data_set(train,test)'''\n\ndef split_target(train_data):\n    train_data.dropna(axis = 0, subset = [\"loan_paid_back\"], inplace = True)\n    target = train_data.pop(\"loan_paid_back\")\n    return train_data, target\n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:26:32.273021Z","iopub.execute_input":"2025-11-07T09:26:32.273361Z","iopub.status.idle":"2025-11-07T09:26:32.279037Z","shell.execute_reply.started":"2025-11-07T09:26:32.273340Z","shell.execute_reply":"2025-11-07T09:26:32.277972Z"}},"outputs":[],"execution_count":20},{"cell_type":"code","source":"def process_and_fit_data(train_data, train_target):    \n    one_hot_columns = [\"gender\", \"marital_status\", \"loan_purpose\"]\n    ord_columns = [\"education_level\", \"grade_subgrade\", \"employment_status\"]\n    education_order = [\"Other\", \"High School\", \"Master's\", \"Bachelor's\", \"PhD\"]\n    grade_order = ['F5','F4','F3', 'F2','F1', 'C3', 'D3', 'C5', 'D1', 'D5', 'C2', 'C1',  'D4', 'C4',\n           'D2', 'E5', 'B1', 'B2',  'A4', 'E1',  'B4', 'E4', 'B3',\n           'E3', 'B5', 'E2', 'A5', 'A3', 'A1', 'A2']\n    grade_order.sort(reverse=True)\n    employment_order = [ 'Unemployed', 'Student','Self-employed', 'Employed', 'Retired']\n    \n    one_hot_transformer = Pipeline(steps=[\n    ('onehot', OneHotEncoder(handle_unknown='ignore'))\n    ])\n\n    \n    ordinal_transformer = Pipeline(steps=[\n    ('ordinal', OrdinalEncoder(categories = [education_order, grade_order, employment_order]))\n    ])\n\n    preprocessor = ColumnTransformer(\n    transformers=[\n        ('onehot', one_hot_transformer, one_hot_columns),\n        ('ordinal', ordinal_transformer, ord_columns)],\n    remainder='passthrough'\n    )\n\n    #Model creating\n    xgb_params = determine_params(train_data, train_target)\n    predict_model = XGBRegressor(**xgb_params)\n    \n    \n\n    my_pipeline = Pipeline(steps=[('preprocessor', preprocessor),\n                              ('model', predict_model)\n                             ])\n\n    my_pipeline.fit(train_data, train_target)\n\n    \n    '''\n    preprocessor.fit(full_data)\n    \n    encoded = preprocessor.transform(full_data)\n\n    encoded_df = pd.DataFrame(encoded, columns=preprocessor.get_feature_names_out(), index=full_data.index)\n    print(encoded_df.columns)\n\n    '''\n    \n    \n\n","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:19:32.799137Z","iopub.execute_input":"2025-11-07T09:19:32.799794Z","iopub.status.idle":"2025-11-07T09:19:32.809493Z","shell.execute_reply.started":"2025-11-07T09:19:32.799764Z","shell.execute_reply":"2025-11-07T09:19:32.808565Z"}},"outputs":[],"execution_count":9},{"cell_type":"code","source":"def main():\n    validation = '/kaggle/input/playground-series-s5e11/test.csv'\n    train = '/kaggle/input/playground-series-s5e11/train.csv'\n    \n    train_data, validation_data = load_data_set(train,validation)\n    # X_full, X_test_full = clean_data_set(X_full, X_test_full)\n    train_data, train_target = split_target(train_data)\n\n    #train_target.head()\n    process_and_fit_data(train_data, train_target)\n \n    # clean data set\n    # do the training\n    # spit out output\n\n    print(\"Done\")\n    \n#Delete when done\nmain()","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:26:42.088606Z","iopub.execute_input":"2025-11-07T09:26:42.088970Z","iopub.status.idle":"2025-11-07T09:26:43.797094Z","shell.execute_reply.started":"2025-11-07T09:26:42.088942Z","shell.execute_reply":"2025-11-07T09:26:43.795526Z"}},"outputs":[{"name":"stderr","text":"[I 2025-11-07 09:26:43,313] A new study created in memory with name: no-name-c24778fd-0121-470d-942c-c700ce5b57b6\n/usr/local/lib/python3.11/dist-packages/pandas/core/arraylike.py:399: RuntimeWarning: divide by zero encountered in log\n  result = getattr(ufunc, method)(*inputs, **kwargs)\n[W 2025-11-07 09:26:43,754] Trial 0 failed with parameters: {'max_depth': 5, 'learning_rate': 0.0001514840362287541, 'n_estimators': 1911, 'min_child_weight': 5, 'colsample_bytree': 0.34782398117358415, 'subsample': 0.22246704862988154, 'reg_alpha': 0.0010971665112254434, 'reg_lambda': 1.4171226750504837} because of the following error: ValueError('\\nAll the 5 fits failed.\\nIt is very likely that your model is misconfigured.\\nYou can try to debug the error by setting error_score=\\'raise\\'.\\n\\nBelow are more details about the failures:\\n--------------------------------------------------------------------------------\\n5 fits failed with the following error:\\nTraceback (most recent call last):\\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 686, in _fit_and_score\\n    estimator.fit(X_train, y_train, **fit_params)\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\\n    return func(**kwargs)\\n           ^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 1055, in fit\\n    train_dmatrix, evals = _wrap_evaluation_matrices(\\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 521, in _wrap_evaluation_matrices\\n    train_dmatrix = create_dmatrix(\\n                    ^^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 958, in _create_dmatrix\\n    return QuantileDMatrix(\\n           ^^^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\\n    return func(**kwargs)\\n           ^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1529, in __init__\\n    self._init(\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1588, in _init\\n    it.reraise()\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 576, in reraise\\n    raise exc  # pylint: disable=raising-bad-type\\n    ^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 557, in _handle_exception\\n    return fn()\\n           ^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 641, in <lambda>\\n    return self._handle_exception(lambda: self.next(input_data), 0)\\n                                          ^^^^^^^^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1280, in next\\n    input_data(**self.kwargs)\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\\n    return func(**kwargs)\\n           ^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 624, in input_data\\n    new, cat_codes, feature_names, feature_types = _proxy_transform(\\n                                                   ^^^^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1315, in _proxy_transform\\n    arr, feature_names, feature_types = _transform_pandas_df(\\n                                        ^^^^^^^^^^^^^^^^^^^^^\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 490, in _transform_pandas_df\\n    _invalid_dataframe_dtype(data)\\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 308, in _invalid_dataframe_dtype\\n    raise ValueError(msg)\\nValueError: DataFrame.dtypes for data must be int, float, bool or category. When categorical type is supplied, The experimental DMatrix parameter`enable_categorical` must be set to `True`.  Invalid columns:gender: object, marital_status: object, education_level: object, employment_status: object, loan_purpose: object, grade_subgrade: object\\n').\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\", line 201, in _run_trial\n    value_or_values = func(trial)\n                      ^^^^^^^^^^^\n  File \"/tmp/ipykernel_167/131487802.py\", line 18, in <lambda>\n    study.optimize(lambda trial: objective(trial, train_data, train_target), n_trials=20)\n                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/ipykernel_167/131487802.py\", line 14, in objective\n    return score_dataset(train_data, train_target, xgb)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/ipykernel_167/2279474778.py\", line 6, in score_dataset\n    score = cross_val_score(\n            ^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 515, in cross_val_score\n    cv_results = cross_validate(\n                 ^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 285, in cross_validate\n    _warn_or_raise_about_fit_failures(results, error_score)\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 367, in _warn_or_raise_about_fit_failures\n    raise ValueError(all_fits_failed_message)\nValueError: \nAll the 5 fits failed.\nIt is very likely that your model is misconfigured.\nYou can try to debug the error by setting error_score='raise'.\n\nBelow are more details about the failures:\n--------------------------------------------------------------------------------\n5 fits failed with the following error:\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 686, in _fit_and_score\n    estimator.fit(X_train, y_train, **fit_params)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 1055, in fit\n    train_dmatrix, evals = _wrap_evaluation_matrices(\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 521, in _wrap_evaluation_matrices\n    train_dmatrix = create_dmatrix(\n                    ^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 958, in _create_dmatrix\n    return QuantileDMatrix(\n           ^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1529, in __init__\n    self._init(\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1588, in _init\n    it.reraise()\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 576, in reraise\n    raise exc  # pylint: disable=raising-bad-type\n    ^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 557, in _handle_exception\n    return fn()\n           ^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 641, in <lambda>\n    return self._handle_exception(lambda: self.next(input_data), 0)\n                                          ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1280, in next\n    input_data(**self.kwargs)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 624, in input_data\n    new, cat_codes, feature_names, feature_types = _proxy_transform(\n                                                   ^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1315, in _proxy_transform\n    arr, feature_names, feature_types = _transform_pandas_df(\n                                        ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 490, in _transform_pandas_df\n    _invalid_dataframe_dtype(data)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 308, in _invalid_dataframe_dtype\n    raise ValueError(msg)\nValueError: DataFrame.dtypes for data must be int, float, bool or category. When categorical type is supplied, The experimental DMatrix parameter`enable_categorical` must be set to `True`.  Invalid columns:gender: object, marital_status: object, education_level: object, employment_status: object, loan_purpose: object, grade_subgrade: object\n\n[W 2025-11-07 09:26:43,755] Trial 0 failed with value None.\n","output_type":"stream"},{"traceback":["\u001b[0;31m---------------------------------------------------------------------------\u001b[0m","\u001b[0;31mValueError\u001b[0m                                Traceback (most recent call last)","\u001b[0;32m/tmp/ipykernel_167/579044225.py\u001b[0m in \u001b[0;36m<cell line: 0>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     17\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     18\u001b[0m \u001b[0;31m#Delete when done\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 19\u001b[0;31m \u001b[0mmain\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m","\u001b[0;32m/tmp/ipykernel_167/579044225.py\u001b[0m in \u001b[0;36mmain\u001b[0;34m()\u001b[0m\n\u001b[1;32m      8\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      9\u001b[0m     \u001b[0;31m#train_target.head()\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 10\u001b[0;31m     \u001b[0mprocess_and_fit_data\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     11\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     12\u001b[0m     \u001b[0;31m# clean data set\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/tmp/ipykernel_167/2000999964.py\u001b[0m in \u001b[0;36mprocess_and_fit_data\u001b[0;34m(train_data, train_target)\u001b[0m\n\u001b[1;32m     26\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     27\u001b[0m     \u001b[0;31m#Model creating\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 28\u001b[0;31m     \u001b[0mxgb_params\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mdetermine_params\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     29\u001b[0m     \u001b[0mpredict_model\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mXGBRegressor\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m**\u001b[0m\u001b[0mxgb_params\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     30\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/tmp/ipykernel_167/131487802.py\u001b[0m in \u001b[0;36mdetermine_params\u001b[0;34m(train_data, train_target)\u001b[0m\n\u001b[1;32m     16\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mdetermine_params\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     17\u001b[0m     \u001b[0mstudy\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0moptuna\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcreate_study\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdirection\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"minimize\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 18\u001b[0;31m     \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0moptimize\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;32mlambda\u001b[0m \u001b[0mtrial\u001b[0m\u001b[0;34m:\u001b[0m \u001b[0mobjective\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrial\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mn_trials\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m20\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     19\u001b[0m     \u001b[0mxgb_params\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbest_params\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     20\u001b[0m     \u001b[0;32mreturn\u001b[0m \u001b[0mxgb_params\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/study.py\u001b[0m in \u001b[0;36moptimize\u001b[0;34m(self, func, n_trials, timeout, n_jobs, catch, callbacks, gc_after_trial, show_progress_bar)\u001b[0m\n\u001b[1;32m    488\u001b[0m                 \u001b[0mIf\u001b[0m \u001b[0mnested\u001b[0m \u001b[0minvocation\u001b[0m \u001b[0mof\u001b[0m \u001b[0mthis\u001b[0m \u001b[0mmethod\u001b[0m \u001b[0moccurs\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    489\u001b[0m         \"\"\"\n\u001b[0;32m--> 490\u001b[0;31m         _optimize(\n\u001b[0m\u001b[1;32m    491\u001b[0m             \u001b[0mstudy\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    492\u001b[0m             \u001b[0mfunc\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mfunc\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_optimize\u001b[0;34m(study, func, n_trials, timeout, n_jobs, catch, callbacks, gc_after_trial, show_progress_bar)\u001b[0m\n\u001b[1;32m     61\u001b[0m     \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     62\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mn_jobs\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;36m1\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 63\u001b[0;31m             _optimize_sequential(\n\u001b[0m\u001b[1;32m     64\u001b[0m                 \u001b[0mstudy\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     65\u001b[0m                 \u001b[0mfunc\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_optimize_sequential\u001b[0;34m(study, func, n_trials, timeout, catch, callbacks, gc_after_trial, reseed_sampler_rng, time_start, progress_bar)\u001b[0m\n\u001b[1;32m    158\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    159\u001b[0m         \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 160\u001b[0;31m             \u001b[0mfrozen_trial_id\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0m_run_trial\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mstudy\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcatch\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    161\u001b[0m         \u001b[0;32mfinally\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    162\u001b[0m             \u001b[0;31m# The following line mitigates memory problems that can be occurred in some\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_run_trial\u001b[0;34m(study, func, catch)\u001b[0m\n\u001b[1;32m    256\u001b[0m         \u001b[0;32mand\u001b[0m \u001b[0;32mnot\u001b[0m \u001b[0misinstance\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mfunc_err\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcatch\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    257\u001b[0m     ):\n\u001b[0;32m--> 258\u001b[0;31m         \u001b[0;32mraise\u001b[0m \u001b[0mfunc_err\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    259\u001b[0m     \u001b[0;32mreturn\u001b[0m \u001b[0mtrial\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_trial_id\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    260\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/optuna/study/_optimize.py\u001b[0m in \u001b[0;36m_run_trial\u001b[0;34m(study, func, catch)\u001b[0m\n\u001b[1;32m    199\u001b[0m     \u001b[0;32mwith\u001b[0m \u001b[0mget_heartbeat_thread\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrial\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_trial_id\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_storage\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    200\u001b[0m         \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 201\u001b[0;31m             \u001b[0mvalue_or_values\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrial\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    202\u001b[0m         \u001b[0;32mexcept\u001b[0m \u001b[0mexceptions\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mTrialPruned\u001b[0m \u001b[0;32mas\u001b[0m \u001b[0me\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    203\u001b[0m             \u001b[0;31m# TODO(mamu): Handle multi-objective cases.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/tmp/ipykernel_167/131487802.py\u001b[0m in \u001b[0;36m<lambda>\u001b[0;34m(trial)\u001b[0m\n\u001b[1;32m     16\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mdetermine_params\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     17\u001b[0m     \u001b[0mstudy\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0moptuna\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcreate_study\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdirection\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"minimize\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 18\u001b[0;31m     \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0moptimize\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;32mlambda\u001b[0m \u001b[0mtrial\u001b[0m\u001b[0;34m:\u001b[0m \u001b[0mobjective\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrial\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mn_trials\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m20\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     19\u001b[0m     \u001b[0mxgb_params\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mstudy\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbest_params\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     20\u001b[0m     \u001b[0;32mreturn\u001b[0m \u001b[0mxgb_params\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/tmp/ipykernel_167/131487802.py\u001b[0m in \u001b[0;36mobjective\u001b[0;34m(trial, train_data, train_target)\u001b[0m\n\u001b[1;32m     12\u001b[0m     )\n\u001b[1;32m     13\u001b[0m     \u001b[0mxgb\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mXGBRegressor\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m**\u001b[0m\u001b[0mxgb_params\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 14\u001b[0;31m     \u001b[0;32mreturn\u001b[0m \u001b[0mscore_dataset\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mxgb\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     15\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     16\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mdetermine_params\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/tmp/ipykernel_167/2279474778.py\u001b[0m in \u001b[0;36mscore_dataset\u001b[0;34m(train_data, train_target, model)\u001b[0m\n\u001b[1;32m      4\u001b[0m     \u001b[0mlog_target\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mnp\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mlog\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_target\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      5\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 6\u001b[0;31m     score = cross_val_score(\n\u001b[0m\u001b[1;32m      7\u001b[0m         \u001b[0mmodel\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtrain_data\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mlog_target\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcv\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m5\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mscoring\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"neg_mean_squared_error\"\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      8\u001b[0m     )\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\u001b[0m in \u001b[0;36mcross_val_score\u001b[0;34m(estimator, X, y, groups, scoring, cv, n_jobs, verbose, fit_params, pre_dispatch, error_score)\u001b[0m\n\u001b[1;32m    513\u001b[0m     \u001b[0mscorer\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcheck_scoring\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mestimator\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mscoring\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mscoring\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    514\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 515\u001b[0;31m     cv_results = cross_validate(\n\u001b[0m\u001b[1;32m    516\u001b[0m         \u001b[0mestimator\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mestimator\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    517\u001b[0m         \u001b[0mX\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mX\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\u001b[0m in \u001b[0;36mcross_validate\u001b[0;34m(estimator, X, y, groups, scoring, cv, n_jobs, verbose, fit_params, pre_dispatch, return_train_score, return_estimator, error_score)\u001b[0m\n\u001b[1;32m    283\u001b[0m     )\n\u001b[1;32m    284\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 285\u001b[0;31m     \u001b[0m_warn_or_raise_about_fit_failures\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mresults\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0merror_score\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    286\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    287\u001b[0m     \u001b[0;31m# For callabe scoring, the return type is only know after calling. If the\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;32m/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\u001b[0m in \u001b[0;36m_warn_or_raise_about_fit_failures\u001b[0;34m(results, error_score)\u001b[0m\n\u001b[1;32m    365\u001b[0m                 \u001b[0;34mf\"Below are more details about the failures:\\n{fit_errors_summary}\"\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    366\u001b[0m             )\n\u001b[0;32m--> 367\u001b[0;31m             \u001b[0;32mraise\u001b[0m \u001b[0mValueError\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mall_fits_failed_message\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    368\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    369\u001b[0m         \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n","\u001b[0;31mValueError\u001b[0m: \nAll the 5 fits failed.\nIt is very likely that your model is misconfigured.\nYou can try to debug the error by setting error_score='raise'.\n\nBelow are more details about the failures:\n--------------------------------------------------------------------------------\n5 fits failed with the following error:\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 686, in _fit_and_score\n    estimator.fit(X_train, y_train, **fit_params)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 1055, in fit\n    train_dmatrix, evals = _wrap_evaluation_matrices(\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 521, in _wrap_evaluation_matrices\n    train_dmatrix = create_dmatrix(\n                    ^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 958, in _create_dmatrix\n    return QuantileDMatrix(\n           ^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1529, in __init__\n    self._init(\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1588, in _init\n    it.reraise()\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 576, in reraise\n    raise exc  # pylint: disable=raising-bad-type\n    ^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 557, in _handle_exception\n    return fn()\n           ^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 641, in <lambda>\n    return self._handle_exception(lambda: self.next(input_data), 0)\n                                          ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1280, in next\n    input_data(**self.kwargs)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 624, in input_data\n    new, cat_codes, feature_names, feature_types = _proxy_transform(\n                                                   ^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1315, in _proxy_transform\n    arr, feature_names, feature_types = _transform_pandas_df(\n                                        ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 490, in _transform_pandas_df\n    _invalid_dataframe_dtype(data)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 308, in _invalid_dataframe_dtype\n    raise ValueError(msg)\nValueError: DataFrame.dtypes for data must be int, float, bool or category. When categorical type is supplied, The experimental DMatrix parameter`enable_categorical` must be set to `True`.  Invalid columns:gender: object, marital_status: object, education_level: object, employment_status: object, loan_purpose: object, grade_subgrade: object\n"],"ename":"ValueError","evalue":"\nAll the 5 fits failed.\nIt is very likely that your model is misconfigured.\nYou can try to debug the error by setting error_score='raise'.\n\nBelow are more details about the failures:\n--------------------------------------------------------------------------------\n5 fits failed with the following error:\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.11/dist-packages/sklearn/model_selection/_validation.py\", line 686, in _fit_and_score\n    estimator.fit(X_train, y_train, **fit_params)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 1055, in fit\n    train_dmatrix, evals = _wrap_evaluation_matrices(\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 521, in _wrap_evaluation_matrices\n    train_dmatrix = create_dmatrix(\n                    ^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/sklearn.py\", line 958, in _create_dmatrix\n    return QuantileDMatrix(\n           ^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1529, in __init__\n    self._init(\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 1588, in _init\n    it.reraise()\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 576, in reraise\n    raise exc  # pylint: disable=raising-bad-type\n    ^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 557, in _handle_exception\n    return fn()\n           ^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 641, in <lambda>\n    return self._handle_exception(lambda: self.next(input_data), 0)\n                                          ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1280, in next\n    input_data(**self.kwargs)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 730, in inner_f\n    return func(**kwargs)\n           ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/core.py\", line 624, in input_data\n    new, cat_codes, feature_names, feature_types = _proxy_transform(\n                                                   ^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 1315, in _proxy_transform\n    arr, feature_names, feature_types = _transform_pandas_df(\n                                        ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 490, in _transform_pandas_df\n    _invalid_dataframe_dtype(data)\n  File \"/usr/local/lib/python3.11/dist-packages/xgboost/data.py\", line 308, in _invalid_dataframe_dtype\n    raise ValueError(msg)\nValueError: DataFrame.dtypes for data must be int, float, bool or category. When categorical type is supplied, The experimental DMatrix parameter`enable_categorical` must be set to `True`.  Invalid columns:gender: object, marital_status: object, education_level: object, employment_status: object, loan_purpose: object, grade_subgrade: object\n","output_type":"error"}],"execution_count":22},{"cell_type":"code","source":"full_data_one_hot_encoded.shape","metadata":{"trusted":true,"execution":{"iopub.status.busy":"2025-11-07T09:19:03.949281Z","iopub.status.idle":"2025-11-07T09:19:03.949660Z","shell.execute_reply.started":"2025-11-07T09:19:03.949457Z","shell.execute_reply":"2025-11-07T09:19:03.949489Z"}},"outputs":[],"execution_count":null}]}
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "1e0519b1",
+   "metadata": {
+    "_cell_guid": "b1076dfc-b9ad-4769-8c92-a6c4dae69d19",
+    "_uuid": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5",
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:54.166390Z",
+     "iopub.status.busy": "2025-11-08T08:08:54.166061Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.426674Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.425370Z"
+    },
+    "papermill": {
+     "duration": 5.267403,
+     "end_time": "2025-11-08T08:08:59.428406",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:54.161003",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "/kaggle/input/playground-series-s5e11/sample_submission.csv\n",
+      "/kaggle/input/playground-series-s5e11/train.csv\n",
+      "/kaggle/input/playground-series-s5e11/test.csv\n"
+     ]
+    }
+   ],
+   "source": [
+    "# This Python 3 environment comes with many helpful analytics libraries installed\n",
+    "# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n",
+    "# For example, here's several helpful packages to load\n",
+    "\n",
+    "import numpy as np # linear algebra\n",
+    "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n",
+    "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n",
+    "import optuna\n",
+    "\n",
+    "\n",
+    "from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder\n",
+    "from xgboost import XGBRegressor\n",
+    "from sklearn.model_selection import KFold, cross_val_score, train_test_split\n",
+    "from sklearn.compose import ColumnTransformer\n",
+    "from sklearn.pipeline import Pipeline\n",
+    "from sklearn.impute import SimpleImputer\n",
+    "from sklearn.metrics import mean_absolute_error\n",
+    "# Input data files are available in the read-only \"../input/\" directory\n",
+    "# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n",
+    "\n",
+    "import os\n",
+    "for dirname, _, filenames in os.walk('/kaggle/input'):\n",
+    "    for filename in filenames:\n",
+    "        print(os.path.join(dirname, filename))\n",
+    "\n",
+    "# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" \n",
+    "# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "d1f10e5e",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.437993Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.436452Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.442735Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.441832Z"
+    },
+    "papermill": {
+     "duration": 0.012548,
+     "end_time": "2025-11-08T08:08:59.444482",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.431934",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def main():\n",
+    "    validation = '/kaggle/input/playground-series-s5e11/test.csv'\n",
+    "    train = '/kaggle/input/playground-series-s5e11/train.csv'\n",
+    "    train_data, validation_data = load_data_set(train,validation)\n",
+    "    train_data, train_target = split_target(train_data)\n",
+    "    drop_categorical(train_data, train_target, validation_data)\n",
+    "     \n",
+    "#Delete when done\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "78c35dc9",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.452072Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.451738Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.457344Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.456106Z"
+    },
+    "papermill": {
+     "duration": 0.011224,
+     "end_time": "2025-11-08T08:08:59.459021",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.447797",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def load_data_set(train,validation):    \n",
+    "    train_data = pd.read_csv(train, index_col='id')\n",
+    "    validation_data = pd.read_csv(validation, index_col='id')\n",
+    "    return train_data, validation_data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "88ab9950",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.467460Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.466408Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.472111Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.471046Z"
+    },
+    "papermill": {
+     "duration": 0.011262,
+     "end_time": "2025-11-08T08:08:59.473640",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.462378",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def split_target(train_data):\n",
+    "    train_data.dropna(axis = 0, subset = [\"loan_paid_back\"], inplace = True)\n",
+    "    target = train_data.pop(\"loan_paid_back\")\n",
+    "    return train_data, target\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "801027bc",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.481478Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.480402Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.487686Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.486668Z"
+    },
+    "papermill": {
+     "duration": 0.01283,
+     "end_time": "2025-11-08T08:08:59.489499",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.476669",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def drop_categorical(train_data, train_target, validation_data):\n",
+    "    \n",
+    "    train_data_dropped_cat = train_data.select_dtypes(exclude=['object'])\n",
+    "    validation_dropped_cat = validation_data.select_dtypes(exclude=['object'])\n",
+    "\n",
+    "    train_data_2, train_validation_data, train_target_2 , train_validation_target = train_test_split(train_data_dropped_cat, train_target, train_size = 0.8, test_size = 0.2, random_state = 0)\n",
+    "\n",
+    "\n",
+    "    \n",
+    "    #Model creating\n",
+    "    \n",
+    "    study = optuna.create_study(direction=\"minimize\")\n",
+    "    study.optimize(objective, n_trials=20)\n",
+    "    xgb_params = study.best_params\n",
+    "    predict_model = XGBRegressor(**xgb_params)\n",
+    "    \n",
+    "\n",
+    "    my_pipeline = Pipeline(steps=[('model', predict_model)])\n",
+    "\n",
+    "    my_pipeline.fit(train_validation_data,train_validation_target)\n",
+    "\n",
+    "    mae = mean_absolute_error(preds, y_valid)\n",
+    "    print(mae)\n",
+    "\n",
+    "\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "63b168a6",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.497219Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.496482Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.504404Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.503121Z"
+    },
+    "papermill": {
+     "duration": 0.013954,
+     "end_time": "2025-11-08T08:08:59.506429",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.492475",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def determine_params(train_data_2, train_target_2):\n",
+    "    study = optuna.create_study(direction=\"minimize\")\n",
+    "    study.optimize(lambda trial: objective(trial, train_data_2, train_target_2), n_trials=20)\n",
+    "    xgb_params = study.best_params\n",
+    "    return xgb_params\n",
+    "\n",
+    "def objective(trial):\n",
+    "    xgb_params = dict(\n",
+    "        max_depth=trial.suggest_int(\"max_depth\", 2, 10),\n",
+    "        learning_rate=trial.suggest_float(\"learning_rate\", 1e-4, 1e-1, log=True),\n",
+    "        n_estimators=trial.suggest_int(\"n_estimators\", 1000, 8000),\n",
+    "        min_child_weight=trial.suggest_int(\"min_child_weight\", 1, 10),\n",
+    "        colsample_bytree=trial.suggest_float(\"colsample_bytree\", 0.2, 1.0),\n",
+    "        subsample=trial.suggest_float(\"subsample\", 0.2, 1.0),\n",
+    "        reg_alpha=trial.suggest_float(\"reg_alpha\", 1e-4, 1e2, log=True),\n",
+    "        reg_lambda=trial.suggest_float(\"reg_lambda\", 1e-4, 1e2, log=True),\n",
+    "    )\n",
+    "    xgb = XGBRegressor(**xgb_params)\n",
+    "    return None\n",
+    "    #return score_dataset(train_data_2, train_target_2, xgb)\n",
+    "\n",
+    "    \n",
+    "#my_model = XGBRegressor(**xgb_params)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "ec88955e",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.513696Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.513346Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.519214Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.518129Z"
+    },
+    "papermill": {
+     "duration": 0.011484,
+     "end_time": "2025-11-08T08:08:59.521018",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.509534",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def score_dataset(train_data, train_target, model=XGBRegressor()):\n",
+    "    for colname in train_data.select_dtypes([\"category\"]):\n",
+    "        full_data[colname] = train_data[colname].cat.codes\n",
+    "    log_target = np.log(train_target)\n",
+    "    \n",
+    "    score = cross_val_score(\n",
+    "        model, train_data, log_target, cv=5, scoring=\"neg_mean_squared_error\",\n",
+    "    )\n",
+    "    score = -1 * score.mean()\n",
+    "    score = np.sqrt(score)\n",
+    "    return score\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "1760bf38",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.528187Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.527837Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.535272Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.534110Z"
+    },
+    "papermill": {
+     "duration": 0.012926,
+     "end_time": "2025-11-08T08:08:59.537002",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.524076",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "\"\\n'annual_income', 'debt_to_income_ratio', 'credit_score', 'loan_amount',\\n'interest_rate', \\n\\n'gender' : 3, \\n'marital_status' : 4, \\n'education_level': 5,\\n'employment_status': 5, \\n'loan_purpose': 8, 'grade_subgrade',\\n\\n\\n'loan_paid_back'],\\n\""
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "'''\n",
+    "'annual_income', 'debt_to_income_ratio', 'credit_score', 'loan_amount',\n",
+    "'interest_rate', \n",
+    "\n",
+    "'gender' : 3, \n",
+    "'marital_status' : 4, \n",
+    "'education_level': 5,\n",
+    "'employment_status': 5, \n",
+    "'loan_purpose': 8, 'grade_subgrade',\n",
+    "\n",
+    "\n",
+    "'loan_paid_back'],\n",
+    "'''\n",
+    "\n",
+    "#corr = X_full.corr()\n",
+    "#print(corr['loan_paid_back'].sort_values(ascending=False))\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "id": "65b18f12",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.544755Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.544419Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.548917Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.547952Z"
+    },
+    "papermill": {
+     "duration": 0.010347,
+     "end_time": "2025-11-08T08:08:59.550479",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.540132",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "#main()\n",
+    "\n",
+    "#full_data_one_hot_encoded.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "id": "3c08ccac",
+   "metadata": {
+    "_kg_hide-input": false,
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.558327Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.557926Z",
+     "iopub.status.idle": "2025-11-08T08:08:59.564628Z",
+     "shell.execute_reply": "2025-11-08T08:08:59.563603Z"
+    },
+    "papermill": {
+     "duration": 0.012254,
+     "end_time": "2025-11-08T08:08:59.566108",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.553854",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "def process_and_fit_data(train_data, train_target):    \n",
+    "\n",
+    "    '''    \n",
+    "    one_hot_columns = [\"gender\", \"marital_status\", \"loan_purpose\"]\n",
+    "    ord_columns = [\"education_level\", \"grade_subgrade\", \"employment_status\"]\n",
+    "    \n",
+    "    education_order = [\"Other\", \"High School\", \"Master's\", \"Bachelor's\", \"PhD\"]\n",
+    "    grade_order = ['F5','F4','F3', 'F2','F1', 'C3', 'D3', 'C5', 'D1', 'D5', 'C2', 'C1',  'D4', 'C4',\n",
+    "           'D2', 'E5', 'B1', 'B2',  'A4', 'E1',  'B4', 'E4', 'B3',\n",
+    "           'E3', 'B5', 'E2', 'A5', 'A3', 'A1', 'A2']\n",
+    "    grade_order.sort(reverse=True)\n",
+    "    employment_order = [ 'Unemployed', 'Student','Self-employed', 'Employed', 'Retired']\n",
+    "    \n",
+    "    one_hot_transformer = Pipeline(steps=[\n",
+    "    ('onehot', OneHotEncoder(handle_unknown='ignore'))\n",
+    "    ])\n",
+    "    \n",
+    "    ordinal_transformer = Pipeline(steps=[\n",
+    "    ('ordinal', OrdinalEncoder(categories = [education_order, grade_order, employment_order]))\n",
+    "    ])\n",
+    "\n",
+    "    preprocessor = ColumnTransformer(\n",
+    "    transformers=[\n",
+    "        ('onehot', one_hot_transformer, one_hot_columns),\n",
+    "        ('ordinal', ordinal_transformer, ord_columns)],\n",
+    "    remainder='passthrough'\n",
+    "    )\n",
+    "    '''\n",
+    "\n",
+    "    #Model creating\n",
+    "    xgb_params = determine_params(train_data, train_target)\n",
+    "    predict_model = XGBRegressor(**xgb_params)\n",
+    "    \n",
+    "    \n",
+    "\n",
+    "    my_pipeline = Pipeline(steps=[('preprocessor', preprocessor),\n",
+    "                              ('model', predict_model)\n",
+    "                             ])\n",
+    "\n",
+    "    my_pipeline.fit(train_data, train_target)\n",
+    "\n",
+    "    \n",
+    "    '''\n",
+    "    preprocessor.fit(full_data)\n",
+    "    \n",
+    "    encoded = preprocessor.transform(full_data)\n",
+    "\n",
+    "    encoded_df = pd.DataFrame(encoded, columns=preprocessor.get_feature_names_out(), index=full_data.index)\n",
+    "    print(encoded_df.columns)\n",
+    "\n",
+    "    '''\n",
+    "    \n",
+    "    \n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "044ce126",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2025-11-08T08:08:59.573476Z",
+     "iopub.status.busy": "2025-11-08T08:08:59.573163Z",
+     "iopub.status.idle": "2025-11-08T08:09:12.201344Z",
+     "shell.execute_reply": "2025-11-08T08:09:12.200196Z"
+    },
+    "papermill": {
+     "duration": 12.634136,
+     "end_time": "2025-11-08T08:09:12.203229",
+     "exception": false,
+     "start_time": "2025-11-08T08:08:59.569093",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "validation = '/kaggle/input/playground-series-s5e11/test.csv'\n",
+    "train = '/kaggle/input/playground-series-s5e11/train.csv'\n",
+    "train_data, validation_data = load_data_set(train,validation)\n",
+    "train_data, train_target = split_target(train_data)\n",
+    "\n",
+    "\n",
+    "train_data_dropped_cat = train_data.select_dtypes(exclude=['object'])\n",
+    "validation_dropped_cat = validation_data.select_dtypes(exclude=['object'])\n",
+    "\n",
+    "train_data_2, train_validation_data, train_target_2 , train_validation_target = train_test_split(train_data_dropped_cat, train_target, train_size = 0.8, test_size = 0.2, random_state = 0)\n",
+    "\n",
+    "\n",
+    "    \n",
+    "#Model creating\n",
+    "    \n",
+    "'''\n",
+    "def objective(trial):\n",
+    "    xgb_params = dict(\n",
+    "        max_depth=trial.suggest_int(\"max_depth\", 2, 10),\n",
+    "        learning_rate=trial.suggest_float(\"learning_rate\", 1e-4, 1e-1, log=True),\n",
+    "        n_estimators=trial.suggest_int(\"n_estimators\", 1000, 8000),\n",
+    "        min_child_weight=trial.suggest_int(\"min_child_weight\", 1, 10),\n",
+    "        colsample_bytree=trial.suggest_float(\"colsample_bytree\", 0.2, 1.0),\n",
+    "        subsample=trial.suggest_float(\"subsample\", 0.2, 1.0),\n",
+    "        reg_alpha=trial.suggest_float(\"reg_alpha\", 1e-4, 1e2, log=True),\n",
+    "        reg_lambda=trial.suggest_float(\"reg_lambda\", 1e-4, 1e2, log=True),\n",
+    "    )\n",
+    "    xgb = XGBRegressor(**xgb_params)\n",
+    "    #return None\n",
+    "    return score_dataset(train_data_2, train_target_2, xgb)\n",
+    "\n",
+    "\n",
+    "\n",
+    "study = optuna.create_study(direction=\"minimize\")\n",
+    "study.optimize(objective, n_trials=20)\n",
+    "xgb_params = study.best_params'''\n",
+    "\n",
+    "\n",
+    "predict_model = XGBRegressor(n_estimators = 500, learning_rate = 0.01)\n",
+    "    \n",
+    "\n",
+    "my_pipeline = Pipeline(steps=[('model', predict_model)])\n",
+    "\n",
+    "my_pipeline.fit(train_data_2, train_target_2)\n",
+    "\n",
+    "preds = predict_model.predict(train_validation_data)\n",
+    "\n",
+    "mae = mean_absolute_error(preds, train_validation_target)\n",
+    "\n",
+    "\n",
+    "final_preds = predict_model.predict(validation_dropped_cat)\n",
+    "output = pd.DataFrame({'id': validation_data.index,\n",
+    "                       'loan_paid_back': final_preds})\n",
+    "output.to_csv('submission.csv', index=False)\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "databundleVersionId": 14262372,
+     "sourceId": 91722,
+     "sourceType": "competition"
+    }
+   ],
+   "dockerImageVersionId": 31153,
+   "isGpuEnabled": false,
+   "isInternetEnabled": false,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.13"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 24.233045,
+   "end_time": "2025-11-08T08:09:13.027882",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2025-11-08T08:08:48.794837",
+   "version": "2.6.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
